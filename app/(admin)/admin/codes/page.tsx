@@ -8,7 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectOption } from "@/components/ui/select"
+import {
+  NativeSelect as Select,
+  NativeSelectOption as SelectOption,
+} from "@/components/ui/native-select"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 

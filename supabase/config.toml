@@ -1,0 +1,13 @@
+# Supabase project configuration. Generated minimal config — extend as needed
+# (e.g. `supabase init` writes a much fuller default if you want all sections).
+
+project_id = "pupil-v1-prototype"
+
+[functions.daily-webhook]
+# Daily.co isn't an authenticated Supabase user; we verify request authenticity
+# via HMAC-SHA256 inside the handler instead of via Supabase JWT.
+verify_jwt = false
+
+[functions.stripe-checkout]
+# Existing function — kept here so the config covers all functions in this dir.
+verify_jwt = false

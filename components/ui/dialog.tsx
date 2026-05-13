@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 interface DialogProps {
   open: boolean
@@ -13,15 +13,15 @@ interface DialogProps {
 const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onOpenChange(false)
+      if (e.key === 'Escape') onOpenChange(false)
     }
     if (open) {
-      document.addEventListener("keydown", handleEscape)
-      document.body.style.overflow = "hidden"
+      document.addEventListener('keydown', handleEscape)
+      document.body.style.overflow = 'hidden'
     }
     return () => {
-      document.removeEventListener("keydown", handleEscape)
-      document.body.style.overflow = ""
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = ''
     }
   }, [open, onOpenChange])
 
@@ -29,7 +29,7 @@ const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
 
   return <>{children}</>
 }
-Dialog.displayName = "Dialog"
+Dialog.displayName = 'Dialog'
 
 const DialogOverlay = React.forwardRef<
   HTMLDivElement,
@@ -38,14 +38,14 @@ const DialogOverlay = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out",
+      'fixed inset-0 z-50 bg-[rgba(26,26,46,0.45)] backdrop-blur-sm animate-in fade-in-0',
       className
     )}
     onClick={onClose}
     {...props}
   />
 ))
-DialogOverlay.displayName = "DialogOverlay"
+DialogOverlay.displayName = 'DialogOverlay'
 
 interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   onClose?: () => void
@@ -53,12 +53,12 @@ interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
   ({ className, children, onClose, ...props }, ref) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <DialogOverlay onClose={onClose} />
       <div
         ref={ref}
         className={cn(
-          "relative z-50 grid w-full max-w-lg gap-4 rounded-lg border border-gray-200 bg-white p-6 shadow-lg duration-200 dark:border-gray-800 dark:bg-gray-950",
+          'relative z-50 grid w-full max-w-lg gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-6 shadow-lg animate-in fade-in-0 zoom-in-95',
           className
         )}
         {...props}
@@ -66,13 +66,13 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
         {children}
         {onClose && (
           <button
-            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            className="absolute right-4 top-4 rounded-sm text-text-2 transition-colors hover:text-text focus:outline-none"
             onClick={onClose}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -91,7 +91,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
     </div>
   )
 )
-DialogContent.displayName = "DialogContent"
+DialogContent.displayName = 'DialogContent'
 
 const DialogHeader = React.forwardRef<
   HTMLDivElement,
@@ -100,13 +100,13 @@ const DialogHeader = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      'flex flex-col space-y-1.5 text-left',
       className
     )}
     {...props}
   />
 ))
-DialogHeader.displayName = "DialogHeader"
+DialogHeader.displayName = 'DialogHeader'
 
 const DialogFooter = React.forwardRef<
   HTMLDivElement,
@@ -115,13 +115,13 @@ const DialogFooter = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
       className
     )}
     {...props}
   />
 ))
-DialogFooter.displayName = "DialogFooter"
+DialogFooter.displayName = 'DialogFooter'
 
 const DialogTitle = React.forwardRef<
   HTMLHeadingElement,
@@ -130,13 +130,13 @@ const DialogTitle = React.forwardRef<
   <h2
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
+      'text-lg font-semibold leading-tight tracking-tight text-text',
       className
     )}
     {...props}
   />
 ))
-DialogTitle.displayName = "DialogTitle"
+DialogTitle.displayName = 'DialogTitle'
 
 const DialogDescription = React.forwardRef<
   HTMLParagraphElement,
@@ -144,11 +144,11 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-gray-500 dark:text-gray-400", className)}
+    className={cn('text-sm text-text-2', className)}
     {...props}
   />
 ))
-DialogDescription.displayName = "DialogDescription"
+DialogDescription.displayName = 'DialogDescription'
 
 export {
   Dialog,

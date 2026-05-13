@@ -47,8 +47,8 @@ export default function Stars({
             <Star
               className={cn(
                 filled
-                  ? "fill-yellow-400 text-yellow-400"
-                  : "fill-none text-gray-300"
+                  ? 'fill-warning text-warning'
+                  : 'fill-none text-text-3'
               )}
               style={{ width: size, height: size }}
             />

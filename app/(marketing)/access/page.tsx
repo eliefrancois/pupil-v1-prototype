@@ -5,7 +5,10 @@ import { Check, Loader as Loader2 } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectOption } from "@/components/ui/select"
+import {
+  NativeSelect as Select,
+  NativeSelectOption as SelectOption,
+} from "@/components/ui/native-select"
 import { Button } from "@/components/ui/button"
 
 type EligibilityType = "SNAP" | "FRPL" | "Common App Waiver" | null

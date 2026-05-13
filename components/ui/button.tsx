@@ -1,38 +1,46 @@
-"use client"
+import * as React from 'react'
+import { Slot } from '@radix-ui/react-slot'
+import { cva, type VariantProps } from 'class-variance-authority'
 
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-sm)] font-medium transition-[background,color,transform,box-shadow] duration-150 ease-out focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 active:translate-y-0',
   {
     variants: {
       variant: {
-        default:
-          "bg-[#7A60E4] text-white hover:bg-[#6950d0] shadow-sm",
+        primary:
+          'bg-primary text-primary-foreground border border-primary shadow-sm hover:bg-[var(--primary-hover)] hover:border-[var(--primary-hover)] hover:-translate-y-[0.5px] hover:shadow',
         secondary:
-          "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700",
+          'bg-surface text-text border border-border-strong shadow-sm hover:bg-surface-2 hover:-translate-y-[0.5px]',
+        soft: 'bg-primary-light text-primary border border-transparent hover:bg-[#E1D9F8] hover:-translate-y-[0.5px]',
         ghost:
-          "hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100",
+          'bg-transparent text-text border border-transparent hover:bg-surface-2',
         outline:
-          "border border-gray-200 bg-transparent hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-100",
-        destructive:
-          "bg-red-500 text-white hover:bg-red-600 shadow-sm dark:bg-red-600 dark:hover:bg-red-700",
+          'bg-transparent text-text border border-border-strong hover:bg-surface-2 hover:-translate-y-[0.5px]',
+        danger:
+          'bg-danger text-white border border-danger shadow-sm hover:bg-[#DC2626] hover:-translate-y-[0.5px] hover:shadow',
         success:
-          "bg-green-600 text-white hover:bg-green-700 shadow-sm dark:bg-green-700 dark:hover:bg-green-800",
+          'bg-success text-white border border-success shadow-sm hover:bg-[#059669] hover:-translate-y-[0.5px] hover:shadow',
+        link: 'bg-transparent text-primary underline-offset-4 hover:underline border border-transparent',
+        // shadcn compat
+        default:
+          'bg-primary text-primary-foreground border border-primary shadow-sm hover:bg-[var(--primary-hover)] hover:border-[var(--primary-hover)] hover:-translate-y-[0.5px] hover:shadow',
+        destructive:
+          'bg-danger text-white border border-danger shadow-sm hover:bg-[#DC2626] hover:-translate-y-[0.5px] hover:shadow',
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
+        sm: 'h-8 px-3 text-[13px] [&_svg]:h-3.5 [&_svg]:w-3.5',
+        md: 'h-[42px] px-[18px] text-sm [&_svg]:h-4 [&_svg]:w-4',
+        lg: 'h-[52px] px-6 text-base [&_svg]:h-4 [&_svg]:w-4',
+        icon: 'h-[42px] w-[42px] p-0',
+        // shadcn compat
+        default: 'h-[42px] px-[18px] text-sm [&_svg]:h-4 [&_svg]:w-4',
       },
     },
     defaultVariants: {
-      variant: "default",
-      size: "default",
+      variant: 'primary',
+      size: 'md',
     },
   }
 )
@@ -44,9 +52,10 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button'
     return (
-      <button
+      <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
@@ -54,6 +63,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     )
   }
 )
-Button.displayName = "Button"
+Button.displayName = 'Button'
 
 export { Button, buttonVariants }

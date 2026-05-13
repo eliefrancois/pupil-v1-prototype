@@ -1,187 +1,292 @@
-"use client"
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { Clock } from 'lucide-react'
 
-import { useState } from "react"
-import { ChevronDown, ChevronUp, Star, UserPlus, CircleAlert as AlertCircle } from "lucide-react"
-import { MATCHING_QUEUE, MENTORS } from "@/lib/mock-data"
-import type { MatchingQueueItem, MatchingCandidate, Mentor } from "@/lib/mock-data"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Avatar } from "@/components/ui/avatar"
-import { cn } from "@/lib/utils"
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { getCurrentUser } from '@/lib/supabase/get-user'
+import { createClient } from '@/lib/supabase/server'
+import { normalizeOptIns } from '@/lib/scheduling/slots'
+import {
+  MIN_QUEUE_SLOTS,
+  isMatchQueueEligible,
+} from '@/lib/scheduling/canonical-slots'
 
-function getMentor(id: string): Mentor | undefined {
-  return MENTORS.find((m) => m.id === id)
+import MatchRow from './match-row'
+
+export const dynamic = 'force-dynamic'
+
+type StudentRow = {
+  user_id: string
+  full_name: string
+  email: string
+  matched_mentor_id: string | null
+  matched_mentor_name: string | null
+  grade: number | null
+  city: string | null
+  state: string | null
+  interests: string[]
+  colleges: string[]
+  careers: string[]
+  availability_slots: string[]
+  created_at: string
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const pct = Math.round(score * 100)
-  const color =
-    pct > 85
-      ? "bg-green-100 text-green-800"
-      : pct > 70
-        ? "bg-[#7A60E4]/10 text-[#7A60E4]"
-        : "bg-gray-100 text-gray-600"
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", color)}>
-      {pct}% match
-    </span>
+type MentorOption = {
+  user_id: string
+  full_name: string
+  university: string
+  major: string | null
+  active_mentees_count: number
+  max_mentees: number
+  rating: number
+  availability_slots: string[]
+}
+
+export default async function AdminMatchingPage({
+  searchParams,
+}: {
+  searchParams: { show?: string }
+}) {
+  const showWaiting = searchParams?.show === 'waiting'
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?next=/admin/matching')
+  if (user.role !== 'admin') {
+    return (
+      <div className="p-8">
+        <Card className="p-12 text-center">
+          <CardContent className="p-0">
+            <p className="text-[15px] font-semibold text-text">
+              Admins only
+            </p>
+            <p className="mt-1 text-[13px] text-text-2">
+              You need an admin role to use this page.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const supabase = createClient()
+
+  const [studentsRes, mentorsRes, mentorUsersRes] = await Promise.all([
+    supabase
+      .from('student_profiles')
+      .select(
+        'user_id, grade, city, state, interests, colleges, careers, matched_mentor_id, availability_slots, created_at'
+      )
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('mentor_profiles')
+      .select(
+        'user_id, university, major, active_mentees_count, max_mentees, rating, availability_slots, status'
+      )
+      .eq('status', 'approved'),
+    supabase.from('users').select('id, full_name, email, role'),
+  ])
+
+  if (studentsRes.error) {
+    console.error('[admin/matching] failed to load student profiles', studentsRes.error)
+  }
+  if (mentorsRes.error) {
+    console.error('[admin/matching] failed to load mentor profiles', mentorsRes.error)
+  }
+  if (mentorUsersRes.error) {
+    console.error('[admin/matching] failed to load users', mentorUsersRes.error)
+  }
+
+  const userById = new Map(
+    (mentorUsersRes.data ?? []).map((u) => [
+      u.id,
+      u as { id: string; full_name: string; email: string; role: string },
+    ])
   )
-}
-
-function MatchCard({ item }: { item: MatchingQueueItem }) {
-  const [expanded, setExpanded] = useState(false)
-  const [assignedTo, setAssignedTo] = useState<string | null>(null)
-
-  const student = item.student
-  const isAssigned = assignedTo !== null
-
-  return (
-    <Card className="overflow-hidden">
-      {/* Collapsed row */}
-      <button
-        type="button"
-        className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-gray-50"
-        onClick={() => setExpanded((p) => !p)}
-      >
-        <Avatar alt={student.name} size="default" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900">{student.name}</span>
-            <span className="text-xs text-gray-500">Grade {student.grade}</span>
-            <span className="text-xs text-gray-400">{student.school}</span>
-          </div>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {student.interests.map((i) => (
-              <Badge key={i} variant="secondary" className="text-[10px]">
-                {i}
-              </Badge>
-            ))}
-            {student.colleges.map((c) => (
-              <Badge key={c} variant="outline" className="text-[10px]">
-                {c}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {isAssigned ? (
-            <Badge variant="success">Assigned</Badge>
-          ) : (
-            <Badge variant="warning">Awaiting match</Badge>
-          )}
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          )}
-        </div>
-      </button>
-
-      {/* Expanded section */}
-      {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4">
-          {/* Identity tags */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            {student.identity.map((tag) => (
-              <Badge key={tag} variant="default" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-
-          {isAssigned ? (
-            <div className="flex items-center gap-2 rounded-md bg-green-50 px-4 py-3">
-              <UserPlus className="h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-800">
-                Assigned to {assignedTo}
-              </span>
-            </div>
-          ) : (
-            <>
-              <h4 className="mb-3 text-sm font-semibold text-gray-700">Suggested mentors</h4>
-              <div className="space-y-3">
-                {item.candidates.map((candidate: MatchingCandidate) => {
-                  const mentor = getMentor(candidate.mentorId)
-                  if (!mentor) return null
-                  return (
-                    <div
-                      key={candidate.mentorId}
-                      className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-4"
-                    >
-                      <Avatar src={mentor.photo} alt={mentor.name} size="default" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-900">{mentor.name}</span>
-                          <span className="text-xs text-gray-500">{mentor.university}</span>
-                          <span className="text-xs text-gray-400">{mentor.major}</span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {candidate.reasons.map((reason) => (
-                            <span
-                              key={reason}
-                              className="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600"
-                            >
-                              {reason}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-3 text-xs text-gray-500">
-                          <span>{mentor.activeMentees} mentees</span>
-                          <span className="flex items-center gap-0.5">
-                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                            {mentor.rating}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <ScoreBadge score={candidate.score} />
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setAssignedTo(mentor.name)
-                          }}
-                        >
-                          Assign
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <button
-                type="button"
-                className="mt-3 flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-[#7A60E4]"
-              >
-                <AlertCircle className="h-3.5 w-3.5" />
-                No suitable mentor &mdash; flag for recruitment
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </Card>
+  const mentorNameById = new Map(
+    Array.from(userById.values())
+      .filter((u) => u.role === 'mentor')
+      .map((u) => [u.id, u.full_name])
   )
-}
+  const mentorByUserId = new Map(
+    (mentorsRes.data ?? []).map((m) => [m.user_id, m])
+  )
 
-export default function MatchingQueuePage() {
+  const students: StudentRow[] = (studentsRes.data ?? [])
+    .filter((row) => {
+      const u = userById.get(row.user_id)
+      return u?.role === 'student'
+    })
+    .map((row) => {
+      const u = userById.get(row.user_id)
+      return {
+        user_id: row.user_id,
+        full_name: u?.full_name ?? '',
+        email: u?.email ?? '',
+        matched_mentor_id: row.matched_mentor_id,
+        matched_mentor_name: row.matched_mentor_id
+          ? (mentorNameById.get(row.matched_mentor_id) ?? null)
+          : null,
+        grade: row.grade,
+        city: row.city,
+        state: row.state,
+        interests: row.interests ?? [],
+        colleges: row.colleges ?? [],
+        careers: row.careers ?? [],
+        availability_slots: Array.from(normalizeOptIns(row.availability_slots)),
+        created_at: row.created_at,
+      }
+    })
+
+  const mentorOptions: MentorOption[] = Array.from(
+    mentorByUserId.values()
+  ).map((m) => ({
+    user_id: m.user_id,
+    full_name: mentorNameById.get(m.user_id) ?? '',
+    university: m.university,
+    major: m.major,
+    active_mentees_count: m.active_mentees_count ?? 0,
+    max_mentees: m.max_mentees ?? 3,
+    rating: m.rating ?? 0,
+    availability_slots: Array.from(normalizeOptIns(m.availability_slots)),
+  }))
+
+  const eligibleStudents = students.filter((s) =>
+    isMatchQueueEligible(s.availability_slots.length)
+  )
+  const waitingStudents = students.filter(
+    (s) => !isMatchQueueEligible(s.availability_slots.length)
+  )
+  const visibleStudents = showWaiting ? waitingStudents : eligibleStudents
+  const unmatchedCount = eligibleStudents.filter((s) => !s.matched_mentor_id)
+    .length
+
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Matching queue</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {MATCHING_QUEUE.length} students awaiting mentor assignment
+      <div className="mx-auto max-w-5xl space-y-6 p-8">
+        <div>
+          <h1 className="display text-[28px] leading-tight">
+            Mentor matching
+          </h1>
+          <p className="mt-1 text-[14px] text-text-2">
+            {eligibleStudents.length} in queue ·{' '}
+            <span className="font-medium text-warning">{unmatchedCount}</span>{' '}
+            unmatched
+            {waitingStudents.length > 0 && (
+              <>
+                {' '}·{' '}
+                <span className="text-text-3">
+                  {waitingStudents.length} waiting on availability
+                </span>
+              </>
+            )}
           </p>
         </div>
 
-        <div className="space-y-4">
-          {MATCHING_QUEUE.map((item) => (
-            <MatchCard key={item.id} item={item} />
-          ))}
-        </div>
+        {(eligibleStudents.length > 0 || waitingStudents.length > 0) && (
+          <div className="flex gap-1 rounded-[var(--radius)] border border-line bg-surface-2 p-1">
+            <Button
+              variant={!showWaiting ? 'default' : 'ghost'}
+              size="sm"
+              asChild
+              className="flex-1"
+            >
+              <Link href="/admin/matching">
+                In queue ({eligibleStudents.length})
+              </Link>
+            </Button>
+            <Button
+              variant={showWaiting ? 'default' : 'ghost'}
+              size="sm"
+              asChild
+              className="flex-1"
+            >
+              <Link href="/admin/matching?show=waiting">
+                <Clock className="h-3.5 w-3.5" />
+                Waiting on availability ({waitingStudents.length})
+              </Link>
+            </Button>
+          </div>
+        )}
+
+        {visibleStudents.length === 0 ? (
+          <Card className="p-12 text-center">
+            <CardContent className="p-0">
+              <p className="text-[15px] font-semibold text-text">
+                {showWaiting
+                  ? 'No students waiting on availability'
+                  : students.length === 0
+                    ? 'No students yet'
+                    : 'No students in queue yet'}
+              </p>
+              <p className="mt-1 text-[13px] text-text-2">
+                {showWaiting
+                  ? 'Every active student has set at least the minimum availability.'
+                  : students.length === 0
+                    ? "Once students complete onboarding, they'll show up here ready to be matched."
+                    : `Students enter the queue once they pick at least ${MIN_QUEUE_SLOTS} availability slots.`}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {showWaiting && (
+              <Card className="bg-surface-2 border-line">
+                <CardContent className="p-4 text-[13px] text-text-2">
+                  These students haven&apos;t set the minimum{' '}
+                  {MIN_QUEUE_SLOTS} availability slots yet, so the matcher
+                  can&apos;t score them. They show up in the in-queue tab as
+                  soon as they save more times.
+                </CardContent>
+              </Card>
+            )}
+            {visibleStudents.map((student) => (
+              <MatchRow
+                key={student.user_id}
+                student={student}
+                mentorOptions={mentorOptions}
+              />
+            ))}
+          </div>
+        )}
+
+        {mentorOptions.length === 0 && students.length > 0 && (
+          <Card className="border-warning bg-[rgba(245,158,11,0.05)]">
+            <CardContent className="p-5">
+              <p className="text-[13px] font-medium text-text">
+                No approved mentors available to assign
+              </p>
+              <p className="mt-1 text-[12px] text-text-2">
+                Approve mentor applications under{' '}
+                <a
+                  href="/admin/mentors?status=pending"
+                  className="text-primary hover:underline"
+                >
+                  Mentors &rarr; Pending review
+                </a>{' '}
+                before you can complete any matches.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {students.length > 0 && (
+          <Card className="bg-surface-2">
+            <CardContent className="space-y-2 p-5">
+              <p className="text-[13px] font-medium text-text">Legend</p>
+              <div className="flex flex-wrap gap-3 text-[12px] text-text-2">
+                <span className="flex items-center gap-1.5">
+                  <Badge variant="success">Matched</Badge>
+                  Has a mentor assigned
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Badge variant="warning">Unmatched</Badge>
+                  Awaiting assignment
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

@@ -2,7 +2,8 @@
 
 **Owner:** Dario Anaya, Founder & CEO
 **Tech Lead:** Elie Francois
-**Last Updated:** April 30, 2026
+**Last Updated:** May 3, 2026
+**PRD Freeze:** May 6, 2026 (Wednesday)
 **Target Launch:** May 15, 2026
 
 ---
@@ -19,6 +20,18 @@ The platform combines three things:
 The problem it solves: most families don't have access to quality college guidance. School counselors are stretched thin (400:1 ratio is common). Private consultants charge $5K-$25K. Generic advice online doesn't account for who you are or what matters to you.
 
 Pupil fills that gap at $900/year.
+
+### Brand Positioning
+
+How we talk about Pupil externally vs. how we build it internally are different things, and that's deliberate.
+
+**Externally:** Pupil is the largest network of identity-driven mentoring for college-bound students. The story is human connection, real college mentors, real conversations. Marketing copy, the website, and the pitch deck do not lead with AI.
+
+**Internally:** AI is a moat, not the product. We use it for matching signals, pre-call icebreakers, post-call breakdowns, message moderation, and (later) MentorGPT. None of those features need to scream AI to the user.
+
+The reasoning: tying the brand to AI ties our perception to AI sentiment, which is volatile. People are already souring on AI-branded products. Live or die by the value we provide, not by what OpenAI or Anthropic does next.
+
+This shows up in real product decisions throughout this PRD, especially MentorGPT naming (section 11) and how features are surfaced to users.
 
 ---
 
@@ -143,15 +156,22 @@ If there's no mentor matching what a student wants, they can submit a request an
 
 ### 5. Matching
 
-**Manual in V0.** When a student completes onboarding, a match request is created. Admin reviews it and assigns a mentor from the dashboard.
+**Programmatic pre-filter, manual final assignment in V0.** This is the workflow:
 
-Target: match within 24-48 hours.
+1. Student completes onboarding → a match request is created in the matching queue.
+2. The system pre-filters mentors by interests, school overlap, major overlap, available time windows, and current mentee load. It returns a ranked list.
+3. Admin opens the matching queue, sees the student's profile, sees the pre-filtered ranked mentor list, and clicks Assign on the chosen mentor.
+4. Both parties get a notification email with the match.
 
-Match criteria:
+The system does the boring work (filtering, scoring, ranking). The admin makes the human call. This is the model V0 ships with. Fully automated assignment is V1+ once we have rating data to validate match quality.
+
+Target: match within 24-48 hours of onboarding completion.
+
+Match criteria (used in pre-filter scoring):
 - School of interest overlap
 - Major overlap
 - Identity preferences (if specified by both parties)
-- Schedule overlap (can they actually meet?)
+- Time window overlap (the student's selected windows intersect at least one of the mentor's)
 
 A mentor can have up to 5 active mentees (configurable from admin).
 
@@ -175,14 +195,20 @@ Constraints from the safety rules:
 
 **Needs to be built.**
 
-After booking, a video room is created automatically. Both parties get a link. The call happens in-app using Daily.co (embedded video UI).
+After booking, a video room is created automatically. Both parties get a link. The call happens in-app using Daily.co (embedded video UI). The student joins from their dashboard, the mentor joins from theirs. Nobody leaves the platform. From the call: "anything that happens outside that platform, one we aren't liable for, but [it] can kill the whole company."
+
+Why Daily.co specifically:
+- Free tier covers 10,000 participant-minutes per month. At 30-min sessions with 2 participants that's about 165 sessions/month before we hit the paid tier. Plenty of headroom for V0 and early V1.
+- Beyond 10K minutes the per-minute cost is negligible at our scale.
+- Programmatic control of recording and transcription, which Google Meet and Zoom embedded options don't offer cleanly.
 
 Key requirements:
 - Two participants only (mentor + student)
 - Automatic cloud recording
-- Automatic transcription (this is non-negotiable, needed for safety audits)
+- Automatic transcription (non-negotiable, needed for safety audits AND to feed the post-call breakdown pipeline)
 - Auto-end when the room expires
 - No screen sharing (keep it focused on conversation)
+- 30-minute default session length
 
 After each call ends, both parties are prompted to rate the session.
 
@@ -222,13 +248,25 @@ This is one of the "structured planning tools" referenced in the product descrip
 
 Once matched, a mentor-student pair gets a private conversation. Real-time messaging powered by Supabase Realtime with a pre-built chat UI (chatcn, shadcn-based components).
 
-Safety features:
-- Phone numbers, emails, and social media handles are automatically detected and redacted from messages
-- Flagged messages go to an admin review queue
-- The user sees a warning: "Your message was modified because it contained contact information"
-- Full message history is stored and auditable
+#### Two-pass moderation pipeline
 
-This keeps everyone on the platform. From the conversation: "anything that happens outside that platform, one we aren't liable for but can kill the whole company."
+Every message goes through this before it's delivered:
+
+1. **Regex pass (free, fast).** Pattern-match against phone numbers, email addresses, and social media handles (`@username`, common platforms). Most messages don't trip a rule, so this is the cheap filter.
+2. **AI confirmation pass (only if regex flags).** If regex hits, the message is sent to an LLM to confirm it actually contains contact info (vs. a false positive like "@me" or a phone number quoted as part of an example). Only flagged messages pay tokens.
+
+This split is intentional cost control. Running every message through an LLM would burn budget. Running every message through regex is free. The AI only gates the messages that already look suspicious.
+
+#### Trust-based admin review evolution
+
+How flagged messages are handled changes over time:
+
+- **Phase 1 (launch):** Confirmed flags route to an admin review queue. Dario sees them, decides whether to block, redact, or release. This builds trust in the pipeline and surfaces edge cases.
+- **Phase 2 (post-launch):** Once the pipeline has a track record Dario trusts, double-flagged messages (regex + AI) are auto-blocked and the user sees: "Your message was modified because it contained contact information." Admin still has audit access.
+
+The user always sees a clear warning when their message is modified. Full message history is stored and auditable.
+
+This keeps everyone on the platform. From the call: "anything that happens outside that platform, one we aren't liable for, but [it] can kill the whole company."
 
 ### 11. MentorGPT (Post-V0)
 
@@ -236,7 +274,13 @@ This keeps everyone on the platform. From the conversation: "anything that happe
 
 The reasoning: we want real transcript data from actual mentor-student calls before we train this. Once we see what students are asking about, what topics come up, and what kind of guidance matters most, we can build MentorGPT to be actually useful instead of generic.
 
-**Naming:** likely being renamed. "MentorGPT" ties the brand to a dated GPT concept. "Big Sib" was considered (the idea is a big sibling at any college, scaled) but the abbreviation is BS. Leaning toward something abstract that doesn't scream "AI" to users. People are already souring on AI branding. Internally it's data-driven and AI-powered. Externally it's just a helpful tool.
+**Naming:** likely being renamed. "MentorGPT" ties the brand to a dated GPT concept (OpenAI itself has moved away from "GPTs" as a product framing). Candidates discussed:
+
+- **Big Sib** — captures "big sibling at any college, scaled." Rejected: abbreviation is BS.
+- **Pupil AI** — clear, on-brand, but explicitly AI-labeled.
+- Something abstract — leaning here. Doesn't scream "AI" to users. Aligns with the brand positioning above (we're a mentoring network, not an AI product).
+
+Final naming decision pending. Whatever name lands, the principle holds: internally it's AI-powered, externally it's just a helpful tool.
 
 **When it ships:**
 An AI chat assistant available to all subscribers. Uses context from the student's profile (grade, interests, colleges, goals) plus insights from their session transcripts.
@@ -282,13 +326,26 @@ Decision pending.
 
 **Partially built.** Existing admin panel handles user lists, eligibility review, and pilot codes.
 
-**Needs to be added:**
-- Matching queue (see pending match requests, assign mentors)
-- Mentor management (view all mentors, ratings, session counts, toggle availability)
-- Safety flags queue (flagged messages, reported concerns, low-rated users)
-- Safety rules editor (configure session hours, mentor capacity, moderation settings)
-- B2B code generation (create batches of access codes for schools/orgs, set session caps and expiration)
-- Eligibility review queue (counselor email confirmations)
+The admin dashboard is built around the operational tasks Dario will be doing daily, not analytics. Analytics live in PostHog, the admin dashboard is for action.
+
+#### Day-in-the-life of admin
+
+A typical Dario session in the dashboard:
+
+1. **Matching queue first.** Open the queue, see new students from the last 24h, pick a mentor from the pre-filtered ranked list, click Assign. Goal: get every new student matched within 24-48 hours.
+2. **Safety flags.** Review any messages that hit the two-pass filter (Phase 1) and decide whether to block, redact, or release. Review any "report a safety concern" reports from session ratings.
+3. **Mentor management.** Spot-check low-rated mentors. View ratings, session counts, current mentee load, and availability. Pause or remove mentors with consistent quality issues.
+4. **Eligibility review.** Process counselor emails confirming free-access eligibility. Approve, deny, or request more info.
+5. **B2B code generation (as needed).** When a new school deal closes, generate a batch of access codes with the right session cap and expiration.
+
+#### Sections to build
+
+- **Matching queue:** student profile + pre-filtered ranked mentor list + Assign action. Track time-to-match.
+- **Mentor management:** list view with ratings, session counts, active mentee count, last active. Filter by low-rated. Detail view to pause/remove.
+- **Safety flags queue:** flagged messages and safety concern reports. Block/redact/release actions. Audit log.
+- **Safety rules editor:** configure session hours, max mentees per mentor, contact filter on/off, low-rating threshold.
+- **B2B code generation:** create batches with school name, count, session cap, expiration date. Track redemption.
+- **Eligibility review queue:** counselor email confirmations. Approve/deny.
 
 Analytics live entirely in PostHog. No analytics tab in the admin dashboard.
 
@@ -312,6 +369,15 @@ Schools with portals will eventually want a dashboard showing aggregate student 
 **Needs to be built.**
 
 All analytics live in PostHog. No analytics dashboard in the admin panel. If Dario wants to see funnels, user behavior, or conversion data, he goes to PostHog. This avoids building duplicate analytics UI and keeps the admin dashboard focused on operational tasks (matching, flags, codes).
+
+Why PostHog specifically:
+- Free tier covers ~1M events/month, which we won't approach in V0 or early V1. Cost is effectively zero for the foreseeable future.
+- Best-in-class developer experience for startups. Funnels, retention, session replay, and feature flags in one tool.
+- We can revisit Mixpanel (more enterprise-leaning) if/when we outgrow PostHog. Not on the roadmap.
+
+#### Funnel philosophy
+
+Don't build every possible funnel from day one. Easy to imagine 30 funnels, hard to know which actually inform decisions until users start showing up. Start with two and add more once we have learnings.
 
 Track these events using PostHog:
 - Page visits (landing, pricing, checkout)
@@ -439,14 +505,57 @@ This is a platform where adults interact with minors. Safety is foundational, no
 
 **MentorGPT naming:** Rename before V1 launch. Current frontrunners TBD. Avoid tying brand to AI.
 
-### Answered (from April 30 call)
+### Answered (from April 30 + May 3 calls)
 
 **School admin scope:** B2B access code flow ships in V0 (code gen + student redemption). School admin dashboard with analytics is V1.
 
 **Session structure:** The "structured planning tools" are two features: pre-call icebreakers (AI-generated, grade-specific) and post-call breakdowns (AI-generated from transcript). Both ship in V0. Grade-specific templates and session objectives are handled by the icebreaker generator, not static PDFs.
 
-**Free eligibility verification:** Counselor email route. Student tells counselor, counselor emails Pupil with proof. Only SNAP, FRPL, and Common App fee waiver accepted. No other state programs.
+**Free eligibility verification:** Counselor email route. Student tells counselor, counselor emails Pupil with proof. Only SNAP, FRPL, and Common App fee waiver accepted. No other state programs. Friction is intentional and acceptable, the alternative is families coming out of the woodworks with state-specific eligibility programs we can't reasonably verify.
 
 **Session duration:** 30 minutes.
 
 **LLM for AI features:** Leaning toward Claude (Sonnet 4) for robustness + pricing. Not exclusively OpenAI. Single model for V0, not a gateway/round-robin.
+
+**Scheduling vendor:** None. Custom-built. Cal.com closed the source on the features we needed. Astro Cal is paid. We own scheduling end to end.
+
+**Video vendor:** Daily.co. 10K free participant-minutes/month covers V0 with headroom.
+
+**Mentor compensation in V0:** Unpaid volunteers. Dario re-engages his existing mentor pool over summer 2026. Stripe Connect not needed for V0.
+
+**Messaging moderation:** Two-pass pipeline (regex → AI confirmation). Phase 1 admin reviews flags, Phase 2 auto-blocks once trusted.
+
+**Brand positioning:** External story is "identity-driven mentoring network." AI is internal moat. Don't tie brand to AI sentiment.
+
+---
+
+## Decisions Log
+
+A running log of what got decided when, so we don't relitigate.
+
+This log covers product / strategy decisions (what we build, who it's for, business rules). For engineering decisions (schema, library choices, RLS patterns) see `docs/DECISIONS.md`.
+
+
+| Date | Decision | Source |
+|------|----------|--------|
+| Apr 30 | $900/year early access pricing, no monthly tier | call |
+| Apr 30 | 30-minute session length | call |
+| Apr 30 | Counselor email for free-access eligibility (not student doc upload) | call |
+| Apr 30 | Only SNAP, FRPL, and Common App fee waiver qualify for free | call |
+| Apr 30 | B2B access code flow ships in V0, school portal is V1 | call |
+| Apr 30 | Claude Sonnet 4 as primary LLM | call |
+| Apr 30 | Pre-call icebreakers + post-call breakdowns ship in V0 | call |
+| Apr 30 | Atomic post-call breakdowns in V0, cross-session in V1 | call |
+| May 3 | MentorGPT deprioritized, ship V0 without it | call |
+| May 3 | Custom scheduling, no Cal.com, no Astro Cal | call |
+| May 3 | Daily.co for video, in-app, never leave platform | call |
+| May 3 | Two-pass messaging moderation (regex → AI), phased trust | call |
+| May 3 | Programmatic match pre-filter, admin makes final call | call |
+| May 3 | Brand external as identity-driven mentoring, internal AI as moat | call |
+| May 3 | Mentors unpaid in V0, Dario re-engages existing pool | call |
+| May 3 | Time-window-based scheduling (not free-form availability) | call |
+| May 3 | All analytics in PostHog, none in admin dashboard | call |
+| May 3 | PRD freeze target: Wed May 6, MVP target: May 15 | call |
+| May 3 | Mentor signups require admin approval before going live in directory | workshop |
+| May 3 | No `.edu` enforcement on mentor email; admin review verifies | workshop |
+| May 3 | Incentive research stays out of mentor onboarding (Dario's Google Form covers it) | workshop |

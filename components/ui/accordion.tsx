@@ -1,122 +1,57 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
+import * as AccordionPrimitive from '@radix-ui/react-accordion'
+import { Plus } from 'lucide-react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
-interface AccordionItemContextValue {
-  isOpen: boolean
-  toggle: () => void
-}
+const Accordion = AccordionPrimitive.Root
 
-const AccordionItemContext = React.createContext<AccordionItemContextValue>({
-  isOpen: false,
-  toggle: () => {},
-})
-
-export interface AccordionProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-const Accordion = React.forwardRef<HTMLDivElement, AccordionProps>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("space-y-0", className)} {...props} />
-  )
-)
-Accordion.displayName = "Accordion"
-
-export interface AccordionItemProps
-  extends React.HTMLAttributes<HTMLDivElement> {
-  defaultOpen?: boolean
-}
-
-const AccordionItem = React.forwardRef<HTMLDivElement, AccordionItemProps>(
-  ({ className, defaultOpen = false, children, ...props }, ref) => {
-    const [isOpen, setIsOpen] = React.useState(defaultOpen)
-
-    const toggle = React.useCallback(() => {
-      setIsOpen((prev) => !prev)
-    }, [])
-
-    return (
-      <AccordionItemContext.Provider value={{ isOpen, toggle }}>
-        <div
-          ref={ref}
-          className={cn("border-b border-gray-200 dark:border-gray-800", className)}
-          {...props}
-        >
-          {children}
-        </div>
-      </AccordionItemContext.Provider>
-    )
-  }
-)
-AccordionItem.displayName = "AccordionItem"
-
-export interface AccordionTriggerProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {}
+const AccordionItem = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <AccordionPrimitive.Item
+    ref={ref}
+    className={cn('border-b border-border', className)}
+    {...props}
+  />
+))
+AccordionItem.displayName = 'AccordionItem'
 
 const AccordionTrigger = React.forwardRef<
-  HTMLButtonElement,
-  AccordionTriggerProps
->(({ className, children, ...props }, ref) => {
-  const { isOpen, toggle } = React.useContext(AccordionItemContext)
-
-  return (
-    <button
+  React.ElementRef<typeof AccordionPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
+>(({ className, children, ...props }, ref) => (
+  <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
-        "flex w-full items-center justify-between py-4 font-medium transition-all hover:underline [&>svg]:transition-transform",
+        'flex flex-1 items-center justify-between py-5 text-left text-[15px] font-medium text-text transition-colors hover:text-primary [&[data-state=open]>svg]:rotate-45',
         className
       )}
-      onClick={toggle}
-      aria-expanded={isOpen}
       {...props}
     >
       {children}
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={cn(
-          "h-4 w-4 shrink-0 transition-transform duration-200",
-          isOpen && "rotate-180"
-        )}
-      >
-        <path d="m6 9 6 6 6-6" />
-      </svg>
-    </button>
-  )
-})
-AccordionTrigger.displayName = "AccordionTrigger"
+      <Plus className="h-4 w-4 shrink-0 text-text-2 transition-transform duration-200" />
+    </AccordionPrimitive.Trigger>
+  </AccordionPrimitive.Header>
+))
+AccordionTrigger.displayName = 'AccordionTrigger'
 
-export interface AccordionContentProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
-
-const AccordionContent = React.forwardRef<HTMLDivElement, AccordionContentProps>(
-  ({ className, children, ...props }, ref) => {
-    const { isOpen } = React.useContext(AccordionItemContext)
-
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "overflow-hidden transition-all duration-200",
-          isOpen ? "max-h-[1000px] pb-4" : "max-h-0",
-          className
-        )}
-        role="region"
-        {...props}
-      >
-        <div className="text-sm">{children}</div>
-      </div>
-    )
-  }
-)
-AccordionContent.displayName = "AccordionContent"
+const AccordionContent = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <AccordionPrimitive.Content
+    ref={ref}
+    className="overflow-hidden text-[14px] text-text-2 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
+    {...props}
+  >
+    <div className={cn('pb-5 pt-0', className)}>{children}</div>
+  </AccordionPrimitive.Content>
+))
+AccordionContent.displayName = 'AccordionContent'
 
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }

@@ -4,7 +4,10 @@ import { useState } from "react"
 import { Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectOption } from "@/components/ui/select"
+import {
+  NativeSelect as Select,
+  NativeSelectOption as SelectOption,
+} from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 

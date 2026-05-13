@@ -1,181 +1,220 @@
-"use client"
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import {
+  CheckCircle as CheckCircle,
+  ChevronRight,
+  Flag,
+  GraduationCap,
+  ShieldCheck,
+  UserCheck,
+  Users,
+} from 'lucide-react'
 
-import Link from "next/link"
-import { TriangleAlert as AlertTriangle, Flag, Users, GraduationCap, ShieldAlert, Zap, CircleCheck as CheckCircle, Key, MessageCircle, ChevronRight } from "lucide-react"
-import StatCard from "@/components/stat-card"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import StatCard from '@/components/stat-card'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { getCurrentUser } from '@/lib/supabase/get-user'
+import { createClient } from '@/lib/supabase/server'
 
-const ACTIVITY_FEED = [
-  {
-    id: "a1",
-    icon: ShieldAlert,
-    iconColor: "text-red-500",
-    description: "Critical safety flag opened — student reported concern in session feedback",
-    time: "12 min ago",
-  },
-  {
-    id: "a2",
-    icon: Zap,
-    iconColor: "text-[#7A60E4]",
-    description: "Auto-match: Jordan Tate matched with Priya Raman (94% score)",
-    time: "1 hr ago",
-  },
-  {
-    id: "a3",
-    icon: CheckCircle,
-    iconColor: "text-green-500",
-    description: "Eligibility approved — Tasha Williams (SNAP, Roosevelt HS)",
-    time: "2 hrs ago",
-  },
-  {
-    id: "a4",
-    icon: Key,
-    iconColor: "text-yellow-600",
-    description: "24 of 30 access codes used — EAGLES-2026-A1 (Eastlake High School)",
-    time: "5 hrs ago",
-  },
-  {
-    id: "a5",
-    icon: MessageCircle,
-    iconColor: "text-orange-500",
-    description: "Contact-info filter triggered — mentor message modified (Jonas Lindqvist)",
-    time: "Yesterday",
-  },
-]
+export const dynamic = 'force-dynamic'
 
-const QUICK_ACTIONS = [
-  {
-    id: "qa1",
-    href: "/admin/matching",
-    title: "Matching queue",
-    description: "4 students awaiting match",
-    icon: Users,
-    badgeText: "4",
-    badgeVariant: "warning" as const,
-  },
-  {
-    id: "qa2",
-    href: "/admin/flags",
-    title: "Critical flag alert",
-    description: "1 flag requires immediate review",
-    icon: Flag,
-    badgeText: "Critical",
-    badgeVariant: "danger" as const,
-  },
-  {
-    id: "qa3",
-    href: "/admin/eligibility",
-    title: "Eligibility application pending",
-    description: "3 applications awaiting review",
-    icon: CheckCircle,
-    badgeText: "3",
-    badgeVariant: "default" as const,
-  },
-]
+export default async function AdminDashboardPage() {
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?next=/admin')
+  if (user.role !== 'admin') {
+    return (
+      <div className="p-8">
+        <Card className="p-12 text-center">
+          <CardContent className="p-0">
+            <p className="text-[15px] font-semibold text-text">Admins only</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
-export default function AdminDashboardPage() {
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
+  const supabase = createClient()
+  const [
+    { count: pendingMentors },
+    { count: approvedMentors },
+    { count: totalStudents },
+    { count: unmatchedStudents },
+    { count: openFlags },
+  ] = await Promise.all([
+    supabase
+      .from('mentor_profiles')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
+    supabase
+      .from('mentor_profiles')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('status', 'approved'),
+    supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'student'),
+    supabase
+      .from('student_profiles')
+      .select('user_id', { count: 'exact', head: true })
+      .is('matched_mentor_id', null),
+    supabase
+      .from('safety_flags')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open'),
+  ])
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   })
+
+  const quickActions = [
+    {
+      href: '/admin/mentors?status=pending',
+      title: 'Mentor applications',
+      description:
+        pendingMentors && pendingMentors > 0
+          ? `${pendingMentors} application${pendingMentors === 1 ? '' : 's'} awaiting review`
+          : 'No pending applications',
+      icon: UserCheck,
+      badge:
+        pendingMentors && pendingMentors > 0
+          ? { text: String(pendingMentors), variant: 'warning' as const }
+          : null,
+    },
+    {
+      href: '/admin/matching',
+      title: 'Matching queue',
+      description:
+        unmatchedStudents && unmatchedStudents > 0
+          ? `${unmatchedStudents} student${unmatchedStudents === 1 ? '' : 's'} awaiting a match`
+          : 'All students matched',
+      icon: Users,
+      badge:
+        unmatchedStudents && unmatchedStudents > 0
+          ? { text: String(unmatchedStudents), variant: 'warning' as const }
+          : null,
+    },
+    {
+      href: '/admin/flags',
+      title: 'Safety flags',
+      description:
+        openFlags && openFlags > 0
+          ? `${openFlags} open flag${openFlags === 1 ? '' : 's'}`
+          : 'No open flags',
+      icon: Flag,
+      badge:
+        openFlags && openFlags > 0
+          ? { text: String(openFlags), variant: 'danger' as const }
+          : null,
+    },
+  ]
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-7xl px-6 py-8">
-        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Trust &amp; Safety dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">{today}</p>
+          <h1 className="display text-[28px] leading-tight">
+            Trust &amp; Safety dashboard
+          </h1>
+          <p className="mt-1 text-[14px] text-text-2">{today}</p>
         </div>
 
-        {/* Stat cards */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label="Pending matches"
-            value={4}
-            trend="Requires attention"
-            tone="warning"
-            icon={<Users className="h-5 w-5" />}
+            label="Pending applications"
+            value={pendingMentors ?? 0}
+            trend={
+              pendingMentors && pendingMentors > 0
+                ? 'Requires review'
+                : undefined
+            }
+            tone={
+              pendingMentors && pendingMentors > 0 ? 'warning' : undefined
+            }
+            icon={<UserCheck className="h-5 w-5" />}
           />
           <StatCard
-            label="Active flags"
-            value={4}
-            trend="1 critical"
-            tone="danger"
-            icon={<Flag className="h-5 w-5" />}
+            label="Approved mentors"
+            value={approvedMentors ?? 0}
+            icon={<ShieldCheck className="h-5 w-5" />}
           />
           <StatCard
-            label="Total students"
-            value="1,840"
+            label="Students"
+            value={totalStudents ?? 0}
+            trend={
+              unmatchedStudents && unmatchedStudents > 0
+                ? `${unmatchedStudents} unmatched`
+                : undefined
+            }
+            tone={
+              unmatchedStudents && unmatchedStudents > 0 ? 'warning' : undefined
+            }
             icon={<GraduationCap className="h-5 w-5" />}
           />
           <StatCard
-            label="Total mentors"
-            value={142}
-            icon={<AlertTriangle className="h-5 w-5" />}
+            label="Open safety flags"
+            value={openFlags ?? 0}
+            tone={openFlags && openFlags > 0 ? 'danger' : undefined}
+            icon={<Flag className="h-5 w-5" />}
           />
         </div>
 
-        {/* Two-column layout */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Left column: Activity feed */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Recent activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-4">
-                  {ACTIVITY_FEED.map((item) => {
-                    const Icon = item.icon
-                    return (
-                      <li
-                        key={item.id}
-                        className="flex items-start gap-3 rounded-md p-3 transition-colors hover:bg-gray-50"
-                      >
-                        <div className={`mt-0.5 shrink-0 ${item.iconColor}`}>
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-gray-700">{item.description}</p>
-                          <p className="mt-0.5 text-xs text-gray-400">{item.time}</p>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {quickActions.map((action) => {
+            const Icon = action.icon
+            return (
+              <Link key={action.href} href={action.href}>
+                <Card className="cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="flex items-center gap-4 p-5">
+                    <div className="rounded-[var(--radius-sm)] bg-primary-light p-2.5 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] font-semibold text-text">
+                          {action.title}
+                        </p>
+                        {action.badge && (
+                          <Badge variant={action.badge.variant}>
+                            {action.badge.text}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-[12px] text-text-2">
+                        {action.description}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-text-3" />
+                  </CardContent>
+                </Card>
+              </Link>
+            )
+          })}
+        </div>
 
-          {/* Right column: Quick actions */}
-          <div className="space-y-4">
-            {QUICK_ACTIONS.map((action) => {
-              const Icon = action.icon
-              return (
-                <Link key={action.id} href={action.href}>
-                  <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                    <CardContent className="flex items-center gap-4 p-5">
-                      <div className="rounded-md bg-gray-100 p-2.5 text-gray-600">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-gray-900">{action.title}</p>
-                          <Badge variant={action.badgeVariant}>{action.badgeText}</Badge>
-                        </div>
-                        <p className="mt-0.5 text-xs text-gray-500">{action.description}</p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            })}
-          </div>
+        <div className="mt-8 rounded-[var(--radius-sm)] bg-surface-2 p-4 text-[12px] text-text-2">
+          <p className="font-medium text-text">
+            <CheckCircle className="mr-1.5 inline h-3.5 w-3.5" />
+            Tip
+          </p>
+          <p className="mt-1">
+            Approve mentor applications under{' '}
+            <Link
+              href="/admin/mentors?status=pending"
+              className="text-primary hover:underline"
+            >
+              Mentors &rarr; Pending review
+            </Link>
+            . Once a mentor is approved they appear in the public directory and
+            can be assigned to students under{' '}
+            <Link href="/admin/matching" className="text-primary hover:underline">
+              Matching
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </div>

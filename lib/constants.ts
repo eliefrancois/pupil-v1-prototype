@@ -17,7 +17,8 @@ export interface FaqItem {
 export const NAV_STUDENT: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "Home" },
   { id: "mentor", label: "My Mentor", href: "/dashboard/mentor", icon: "User" },
-  { id: "book", label: "Book Session", href: "/dashboard/book", icon: "Calendar" },
+  { id: "schedule", label: "Availability", href: "/dashboard/schedule", icon: "Calendar" },
+  { id: "book", label: "Book Session", href: "/dashboard/book", icon: "BookOpen" },
   { id: "messages", label: "Messages", href: "/dashboard/messages", icon: "MessageCircle" },
   { id: "history", label: "Session History", href: "/dashboard/history", icon: "List" },
   { id: "settings", label: "Settings", href: "/dashboard/settings", icon: "Settings" },

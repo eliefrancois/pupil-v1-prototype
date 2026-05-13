@@ -1,21 +1,55 @@
-'use client'
-
 import Link from 'next/link'
-import { STUDENT, MENTORS } from '@/lib/mock-data'
+import { redirect } from 'next/navigation'
+import { ArrowLeft, Calendar, Lock, Search, Star, Users } from 'lucide-react'
+
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import Stars from '@/components/stars'
 import StatCard from '@/components/stat-card'
-import { ArrowLeft, Star, Users, Calendar } from 'lucide-react'
+import UpgradeBanner from '@/components/upgrade-banner'
+import { getCurrentUser } from '@/lib/supabase/get-user'
+import { getMatchedMentor, getStudentProfile } from '@/lib/supabase/queries'
 
-export default function MentorProfilePage() {
-  const mentor = MENTORS.find((m) => m.id === STUDENT.matchedMentor)
+export default async function MentorProfilePage() {
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?next=/dashboard/mentor')
+
+  const isPaid = user.subscription_status !== 'inactive'
+  const profile = await getStudentProfile(user.id)
+  const mentor = await getMatchedMentor(profile?.matched_mentor_id)
 
   if (!mentor) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-gray-500">No mentor assigned yet.</p>
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto max-w-3xl space-y-6 p-8">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-[13px] text-text-2 transition-colors hover:text-primary"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to dashboard
+          </Link>
+
+          <Card className="bg-primary-soft border-primary-light">
+            <CardContent className="flex flex-col items-center py-12 text-center">
+              <div className="relative mb-6 flex h-16 w-16 items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-primary-light pulse-ring" />
+                <Search className="relative h-7 w-7 text-primary" />
+              </div>
+              <h1 className="text-[20px] font-semibold text-text">
+                No mentor assigned yet
+              </h1>
+              <p className="mt-2 max-w-md text-[14px] text-text-2">
+                We&apos;re reviewing your interests, goals, and background to
+                pair you with the right mentor. While you wait, browse the
+                directory.
+              </p>
+              <Button variant="secondary" className="mt-6" asChild>
+                <Link href="/mentors">Browse mentors</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -23,71 +57,99 @@ export default function MentorProfilePage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl space-y-8 p-8">
-        {/* Back link */}
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900"
+          className="inline-flex items-center gap-1.5 text-[13px] text-text-2 transition-colors hover:text-primary"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           Back to dashboard
         </Link>
 
+        {!isPaid && <UpgradeBanner />}
+
         <div className="grid gap-8 lg:grid-cols-5">
-          {/* Left column: photo + actions */}
           <div className="space-y-5 lg:col-span-2">
-            <img
-              src={mentor.photo}
-              alt={mentor.name}
-              className="h-80 w-full rounded-xl object-cover"
-              style={{ maxWidth: 320 }}
-            />
+            {mentor.photo_url && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={mentor.photo_url}
+                alt={mentor.full_name}
+                className="h-80 w-full rounded-[var(--radius-lg)] object-cover"
+                style={{ maxWidth: 320 }}
+              />
+            )}
             <div className="flex gap-3">
-              <Button className="flex-1" asChild>
-                <Link href="/dashboard/book">Book a session</Link>
-              </Button>
-              <Button variant="outline" className="flex-1" asChild>
-                <Link href="/dashboard/messages">Message</Link>
-              </Button>
+              {isPaid ? (
+                <>
+                  <Button className="flex-1" asChild>
+                    <Link href="/dashboard/book">Book a session</Link>
+                  </Button>
+                  <Button variant="outline" className="flex-1" asChild>
+                    <Link href="/dashboard/messages">Message</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button className="flex-1" asChild>
+                    <Link href="/pricing">
+                      <Lock className="h-4 w-4" />
+                      Upgrade to book
+                    </Link>
+                  </Button>
+                  <Button variant="outline" className="flex-1" asChild>
+                    <Link href="/pricing">
+                      <Lock className="h-4 w-4" />
+                      Upgrade to message
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Right column: details */}
           <div className="space-y-6 lg:col-span-3">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{mentor.name}</h1>
-              <p className="mt-1 text-gray-500">
-                {mentor.university} &middot; {mentor.major} &middot;{' '}
-                {mentor.gradYear}
+              <h1 className="display text-[32px] leading-tight">
+                {mentor.full_name}
+              </h1>
+              <p className="mt-1 text-[14px] text-text-2">
+                {mentor.university}
+                {mentor.major && ` · ${mentor.major}`}
+                {mentor.grad_year &&
+                  ` · Class of '${String(mentor.grad_year).slice(2)}`}
               </p>
             </div>
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2">
-              {mentor.tags.map((tag) => (
-                <Badge key={tag} variant="secondary">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
+            {mentor.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {mentor.tags.map((tag) => (
+                  <Badge key={tag} variant="purple">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
 
-            {/* Bio */}
-            <p className="leading-relaxed text-gray-600">{mentor.bio}</p>
+            {mentor.bio && (
+              <p className="text-[15px] leading-relaxed text-text-2">
+                {mentor.bio}
+              </p>
+            )}
 
-            {/* Stat cards */}
             <div className="grid gap-4 sm:grid-cols-3">
               <StatCard
                 label="Avg rating"
-                value={mentor.rating.toFixed(1)}
+                value={Number(mentor.rating).toFixed(1)}
                 icon={<Star className="h-5 w-5" />}
               />
               <StatCard
                 label="Total sessions"
-                value={mentor.sessions}
+                value={mentor.sessions_count}
                 icon={<Calendar className="h-5 w-5" />}
               />
               <StatCard
                 label="Active mentees"
-                value={mentor.activeMentees}
+                value="—"
                 icon={<Users className="h-5 w-5" />}
               />
             </div>

@@ -1,24 +1,24 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 export interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
   value?: number
   max?: number
-  variant?: "default" | "success" | "warning" | "danger"
+  variant?: 'default' | 'success' | 'warning' | 'danger'
 }
 
 const variantClasses = {
-  default: "bg-[#7A60E4]",
-  success: "bg-green-600",
-  warning: "bg-yellow-500",
-  danger: "bg-red-500",
+  default: 'bg-primary',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
 }
 
 const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
-  ({ className, value = 0, max = 100, variant = "default", ...props }, ref) => {
+  ({ className, value = 0, max = 100, variant = 'default', ...props }, ref) => {
     const percentage = Math.min(Math.max((value / max) * 100, 0), 100)
 
     return (
@@ -29,14 +29,14 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         aria-valuemax={max}
         aria-valuenow={value}
         className={cn(
-          "relative h-4 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800",
+          'relative h-2 w-full overflow-hidden rounded-full bg-surface-2',
           className
         )}
         {...props}
       >
         <div
           className={cn(
-            "h-full rounded-full transition-all duration-300 ease-in-out",
+            'h-full rounded-full transition-all duration-300 ease-out',
             variantClasses[variant]
           )}
           style={{ width: `${percentage}%` }}
@@ -45,6 +45,6 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
     )
   }
 )
-Progress.displayName = "Progress"
+Progress.displayName = 'Progress'
 
 export { Progress }

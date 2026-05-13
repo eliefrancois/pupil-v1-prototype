@@ -1,0 +1,3 @@
+# Supabase CLI scratch directories — never commit.
+.branches/
+.temp/

@@ -1,69 +1,72 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { MENTORS } from "@/lib/mock-data"
-import { FAQ_ITEMS } from "@/lib/constants"
+import Link from 'next/link'
+import Image from 'next/image'
+import { Calendar, CircleCheck, Clock, PenLine, Star, Users } from 'lucide-react'
+
+import { MENTORS } from '@/lib/mock-data'
+import { FAQ_ITEMS } from '@/lib/constants'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 
 /* ---------- Hero ---------- */
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-white py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-6">
+    <section className="relative overflow-hidden bg-bg py-20 md:py-28">
+      <div className="mx-auto max-w-page px-6">
         <div className="grid items-center gap-12 lg:grid-cols-2">
-          {/* Left copy */}
           <div>
-            {/* Badge */}
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-gray-700 shadow-sm">
-              <span className="inline-block h-2 w-2 rounded-full bg-[#7A60E4]" />
+            <Badge variant="default" className="mb-6 px-3 py-1.5 text-[12px]">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
               For Parents
-            </div>
+            </Badge>
 
-            <h1 className="tracking-tighter text-5xl font-bold leading-[1.08] text-gray-900 md:text-7xl">
-              College guidance your family <em className="not-italic italic">can&nbsp;trust.</em>
+            <h1 className="display text-[44px] leading-[1.05] md:text-[64px]">
+              College guidance your family{' '}
+              <em className="italic font-normal">can&nbsp;trust.</em>
             </h1>
 
-            <p className="mt-6 max-w-lg text-lg leading-relaxed text-gray-600">
-              Pupil connects your student with relatable near-peer college mentors who share their goals, identity, and vibe -- so they get guidance that actually fits.
+            <p className="mt-6 max-w-lg text-[17px] leading-relaxed text-text-2">
+              Pupil connects your student with relatable near-peer college
+              mentors who share their goals, identity, and vibe, so they get
+              guidance that actually fits.
             </p>
 
-            {/* CTAs */}
-            <div className="mt-8 flex flex-wrap items-center gap-4">
-              <Link
-                href="/pricing"
-                className="inline-flex h-12 items-center rounded-lg bg-[#7A60E4] px-6 text-sm font-semibold text-white shadow-sm hover:bg-[#6950d0] transition-colors"
-              >
-                Get Early Access
-              </Link>
-              <Link
-                href="/access"
-                className="inline-flex h-12 items-center rounded-lg border border-gray-200 bg-transparent px-6 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Free or Pilot Access
-              </Link>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Button size="lg" asChild>
+                <Link href="/signup">Get started free</Link>
+              </Button>
+              <Button size="lg" variant="secondary" asChild>
+                <Link href="/mentors">Browse mentors</Link>
+              </Button>
             </div>
 
-            {/* Stats */}
-            <div className="mt-12 flex flex-wrap gap-8">
+            <div className="mt-12 flex flex-wrap gap-10">
               {[
-                { value: "560+", label: "Mentors" },
-                { value: "450+", label: "Students supported" },
-                { value: "105+", label: "Universities represented" },
+                { value: '560+', label: 'Mentors' },
+                { value: '450+', label: 'Students supported' },
+                { value: '105+', label: 'Universities represented' },
               ].map((stat) => (
                 <div key={stat.label}>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-sm text-gray-500">{stat.label}</p>
+                  <p className="display text-[28px] leading-none">
+                    {stat.value}
+                  </p>
+                  <p className="mt-1 text-[13px] text-text-2">{stat.label}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Right: Floating mentor cards */}
           <div className="relative hidden h-[520px] lg:block">
-            {/* Mentor card 1 */}
-            <div className="absolute left-8 top-4 w-64 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
+            <Card className="absolute left-8 top-4 w-64 p-4 shadow-lg">
               <div className="flex items-center gap-3">
                 <Image
                   src={MENTORS[0].photo}
@@ -73,27 +76,32 @@ function HeroSection() {
                   className="h-12 w-12 rounded-full object-cover"
                 />
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{MENTORS[0].name}</p>
-                  <p className="text-xs text-gray-500">{MENTORS[0].university}</p>
+                  <p className="text-[14px] font-semibold text-text">
+                    {MENTORS[0].name}
+                  </p>
+                  <p className="text-[12px] text-text-2">
+                    {MENTORS[0].university}
+                  </p>
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                <span className="font-medium text-gray-700">{MENTORS[0].rating}</span>
-                <span className="mx-1">&#183;</span>
+              <div className="mt-3 flex items-center gap-1 text-[12px] text-text-2">
+                <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+                <span className="font-medium text-text">
+                  {MENTORS[0].rating}
+                </span>
+                <span className="mx-1 text-text-3">&middot;</span>
                 <span>{MENTORS[0].sessions} sessions</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {MENTORS[0].tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-[#7A60E4]">
+                  <Badge key={tag} variant="purple" className="text-[10px]">
                     {tag}
-                  </span>
+                  </Badge>
                 ))}
               </div>
-            </div>
+            </Card>
 
-            {/* Mentor card 2 */}
-            <div className="absolute right-4 top-40 w-64 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
+            <Card className="absolute right-4 top-40 w-64 p-4 shadow-lg">
               <div className="flex items-center gap-3">
                 <Image
                   src={MENTORS[2].photo}
@@ -103,37 +111,46 @@ function HeroSection() {
                   className="h-12 w-12 rounded-full object-cover"
                 />
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{MENTORS[2].name}</p>
-                  <p className="text-xs text-gray-500">{MENTORS[2].university}</p>
+                  <p className="text-[14px] font-semibold text-text">
+                    {MENTORS[2].name}
+                  </p>
+                  <p className="text-[12px] text-text-2">
+                    {MENTORS[2].university}
+                  </p>
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                <span className="font-medium text-gray-700">{MENTORS[2].rating}</span>
-                <span className="mx-1">&#183;</span>
+              <div className="mt-3 flex items-center gap-1 text-[12px] text-text-2">
+                <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+                <span className="font-medium text-text">
+                  {MENTORS[2].rating}
+                </span>
+                <span className="mx-1 text-text-3">&middot;</span>
                 <span>{MENTORS[2].sessions} sessions</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {MENTORS[2].tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-[#7A60E4]">
+                  <Badge key={tag} variant="purple" className="text-[10px]">
                     {tag}
-                  </span>
+                  </Badge>
                 ))}
               </div>
-            </div>
+            </Card>
 
-            {/* Session reminder card */}
-            <div className="absolute bottom-8 left-16 w-72 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
+            <Card className="absolute bottom-8 left-16 w-72 p-4 shadow-lg">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A60E4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-light">
+                  <Calendar className="h-[18px] w-[18px] text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">Session Reminder</p>
-                  <p className="text-xs text-gray-500">Tomorrow at 4:30 PM with {MENTORS[0].name.split(" ")[0]}</p>
+                  <p className="text-[14px] font-semibold text-text">
+                    Session Reminder
+                  </p>
+                  <p className="text-[12px] text-text-2">
+                    Tomorrow at 4:30 PM with {MENTORS[0].name.split(' ')[0]}
+                  </p>
                 </div>
               </div>
-            </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -146,45 +163,50 @@ function HeroSection() {
 function HowItWorksSection() {
   const steps = [
     {
-      number: "01",
-      title: "Tell us about your student",
+      number: '01',
+      title: 'Tell us about your student',
       description:
-        "Share their interests, schools they are exploring, and what kind of mentor would be the best fit.",
+        'Share their interests, schools they are exploring, and what kind of mentor would be the best fit.',
     },
     {
-      number: "02",
-      title: "Get matched with a mentor",
+      number: '02',
+      title: 'Get matched with a mentor',
       description:
-        "Our matching engine pairs your student with a vetted near-peer mentor who shares relevant experience and identity.",
+        'Our matching engine pairs your student with a vetted near-peer mentor who shares relevant experience and identity.',
     },
     {
-      number: "03",
-      title: "Start building a plan",
+      number: '03',
+      title: 'Start building a plan',
       description:
-        "Your student meets their mentor 2-4 times per month for structured, actionable sessions on college and career planning.",
+        'Your student meets their mentor 2 to 4 times per month for structured, actionable sessions on college and career planning.',
     },
   ]
 
   return (
-    <section className="bg-gray-50 py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-6">
-        <p className="text-sm font-semibold uppercase tracking-wider text-[#7A60E4]">
-          How it works
-        </p>
-        <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">
-          Simple to start, <em className="not-italic italic">built to last.</em>
+    <section
+      id="how-it-works"
+      className="border-y border-border bg-surface py-20 md:py-28"
+    >
+      <div className="mx-auto max-w-page px-6">
+        <p className="tiny text-primary">How it works</p>
+        <h2 className="display mt-3 text-[28px] md:text-[44px]">
+          Simple to start,{' '}
+          <em className="italic font-normal">built to last.</em>
         </h2>
 
-        <div className="mt-14 grid gap-6 md:grid-cols-3">
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
           {steps.map((step) => (
-            <div
-              key={step.number}
-              className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm"
-            >
-              <span className="text-sm font-bold text-[#7A60E4]">{step.number}</span>
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">{step.description}</p>
-            </div>
+            <Card key={step.number} className="p-7">
+              <span className="text-[13px] font-semibold tracking-wide text-primary">
+                {step.number}
+              </span>
+              <h3 className="mt-4 text-[17px] font-semibold text-text">
+                {step.title}
+              </h3>
+              <p className="mt-2 text-[14px] leading-relaxed text-text-2">
+                {step.description}
+              </p>
+            </Card>
           ))}
         </div>
       </div>
@@ -197,64 +219,58 @@ function HowItWorksSection() {
 function OurApproachSection() {
   const cards = [
     {
-      title: "Near-peer mentors",
+      title: 'Near-peer mentors',
       description:
-        "Current college students and recent grads who remember what the process actually feels like.",
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7A60E4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      ),
+        'Current college students and recent grads who remember what the process actually feels like.',
+      icon: Users,
     },
     {
-      title: "Identity-aware matching",
+      title: 'Identity-aware matching',
       description:
-        "We match on interests, identity, and lived experience -- not just test scores or school rankings.",
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7A60E4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 10-5.12 5.12-2.83-2.83"/></svg>
-      ),
+        'We match on interests, identity, and lived experience, not just test scores or school rankings.',
+      icon: CircleCheck,
     },
     {
-      title: "Personalized guidance",
+      title: 'Personalized guidance',
       description:
-        "Every session ends with a breakdown of topics covered, action items, and a plan for next time.",
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7A60E4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      ),
+        'Every session ends with a breakdown of topics covered, action items, and a plan for next time.',
+      icon: PenLine,
     },
     {
-      title: "Matched within 24-48 hours",
+      title: 'Matched within 24 to 48 hours',
       description:
-        "No long waitlists. Your student is paired with a mentor and can book their first session right away.",
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7A60E4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      ),
+        'No long waitlists. Your student is paired with a mentor and can book their first session right away.',
+      icon: Clock,
     },
   ]
 
   return (
     <section className="py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-page px-6">
         <div className="text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-[#7A60E4]">
-            Our approach
-          </p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">
+          <p className="tiny text-primary">Our approach</p>
+          <h2 className="display mx-auto mt-3 max-w-2xl text-[28px] md:text-[44px]">
             What makes Pupil different
           </h2>
         </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2">
-          {cards.map((card) => (
-            <div
-              key={card.title}
-              className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm"
-            >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50">
-                {card.icon}
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">{card.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">{card.description}</p>
-            </div>
-          ))}
+        <div className="mt-12 grid gap-5 sm:grid-cols-2">
+          {cards.map((card) => {
+            const Icon = card.icon
+            return (
+              <Card key={card.title} className="p-7">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] bg-primary-light">
+                  <Icon className="h-[18px] w-[18px] text-primary" />
+                </div>
+                <h3 className="text-[17px] font-semibold text-text">
+                  {card.title}
+                </h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-text-2">
+                  {card.description}
+                </p>
+              </Card>
+            )
+          })}
         </div>
       </div>
     </section>
@@ -267,52 +283,49 @@ function MentorsSection() {
   const featured = MENTORS.slice(0, 4)
 
   return (
-    <section className="bg-gray-50 py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-6">
+    <section
+      id="mentors"
+      className="border-y border-border bg-surface py-20 md:py-28"
+    >
+      <div className="mx-auto max-w-page px-6">
         <div className="text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-[#7A60E4]">
-            Meet our mentors
-          </p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">
+          <p className="tiny text-primary">Meet our mentors</p>
+          <h2 className="display mx-auto mt-3 max-w-2xl text-[28px] md:text-[44px]">
             Real students at top universities
           </h2>
         </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {featured.map((mentor) => (
-            <div
-              key={mentor.id}
-              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
-            >
+            <Card key={mentor.id} className="p-5" hover>
               <Image
                 src={mentor.photo}
                 alt={mentor.name}
                 width={400}
                 height={400}
-                className="h-48 w-full rounded-xl object-cover"
+                className="h-44 w-full rounded-[var(--radius-sm)] object-cover"
               />
-              <h3 className="mt-4 text-base font-semibold text-gray-900">{mentor.name}</h3>
-              <p className="text-sm text-gray-500">{mentor.university}</p>
-              <p className="text-xs text-gray-400">{mentor.major}</p>
-              <div className="mt-3 flex items-center gap-2 text-sm">
+              <h3 className="mt-4 text-[15px] font-semibold text-text">
+                {mentor.name}
+              </h3>
+              <p className="text-[13px] text-text-2">{mentor.university}</p>
+              <p className="text-[12px] text-text-3">{mentor.major}</p>
+              <div className="mt-3 flex items-center gap-2 text-[13px]">
                 <div className="flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                  <span className="font-medium text-gray-700">{mentor.rating}</span>
+                  <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+                  <span className="font-medium text-text">{mentor.rating}</span>
                 </div>
-                <span className="text-gray-300">|</span>
-                <span className="text-gray-500">{mentor.sessions} sessions</span>
+                <span className="text-text-3">|</span>
+                <span className="text-text-2">{mentor.sessions} sessions</span>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
 
         <div className="mt-10 text-center">
-          <Link
-            href="/students"
-            className="inline-flex h-11 items-center rounded-lg border border-gray-200 bg-white px-6 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-          >
-            Browse all mentors
-          </Link>
+          <Button variant="secondary" asChild>
+            <Link href="/mentors">Browse all mentors</Link>
+          </Button>
         </div>
       </div>
     </section>
@@ -325,56 +338,53 @@ const TESTIMONIALS = [
   {
     quote:
       "Pupil isn't just mentorship, it's the forging of a path. My daughter now has someone who gets her experience and her ambition.",
-    name: "Monica T.",
-    role: "Parent, Brooklyn NY",
+    name: 'Monica T.',
+    role: 'Parent, Brooklyn NY',
   },
   {
     quote:
       "What really stuck with me was how much I could relate to my mentor. She went through the same things I'm going through and it made me feel way less alone.",
-    name: "Jaylen R.",
-    role: "Student, 11th grade",
+    name: 'Jaylen R.',
+    role: 'Student, 11th grade',
   },
   {
     quote:
       "My favorite part about using Pupil is how easy it is to connect with mentors who actually understand what I'm looking for in a school.",
-    name: "Aaliyah M.",
-    role: "Student, 12th grade",
+    name: 'Aaliyah M.',
+    role: 'Student, 12th grade',
   },
 ]
 
 function TestimonialsSection() {
   return (
     <section className="py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-page px-6">
         <div className="text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-[#7A60E4]">
-            Testimonials
-          </p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">
+          <p className="tiny text-primary">Testimonials</p>
+          <h2 className="display mx-auto mt-3 max-w-2xl text-[28px] md:text-[44px]">
             Families and students love Pupil
           </h2>
         </div>
 
-        <div className="mt-14 grid gap-6 md:grid-cols-3">
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
           {TESTIMONIALS.map((t) => (
-            <div
-              key={t.name}
-              className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm"
-            >
-              {/* Stars */}
+            <Card key={t.name} className="p-7">
               <div className="flex gap-0.5">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <Star
+                    key={i}
+                    className="h-4 w-4 fill-warning text-warning"
+                  />
                 ))}
               </div>
-              <blockquote className="mt-4 text-sm leading-relaxed text-gray-700">
+              <blockquote className="mt-4 text-[14px] leading-relaxed text-text">
                 &ldquo;{t.quote}&rdquo;
               </blockquote>
               <div className="mt-6">
-                <p className="text-sm font-semibold text-gray-900">{t.name}</p>
-                <p className="text-xs text-gray-500">{t.role}</p>
+                <p className="text-[13px] font-semibold text-text">{t.name}</p>
+                <p className="text-[12px] text-text-2">{t.role}</p>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       </div>
@@ -386,22 +396,25 @@ function TestimonialsSection() {
 
 function PricingTeaserSection() {
   return (
-    <section className="py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="mx-auto max-w-md rounded-2xl border-2 border-[#7A60E4] bg-white p-10 text-center shadow-sm">
-          <div className="mb-4 inline-flex items-center rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-[#7A60E4]">
+    <section className="border-y border-border bg-surface py-20 md:py-28">
+      <div className="mx-auto max-w-page px-6">
+        <div className="mx-auto max-w-md rounded-[var(--radius-lg)] border-2 border-primary bg-bg p-10 text-center shadow">
+          <Badge variant="default" className="mb-4">
             Early Access
-          </div>
-          <p className="text-5xl font-bold tracking-tight text-gray-900">$900<span className="text-lg font-medium text-gray-500">/year</span></p>
-          <p className="mt-3 text-sm text-gray-500">
+          </Badge>
+          <p className="display text-[56px] leading-none">
+            $900
+            <span className="text-[16px] font-medium text-text-2">/year</span>
+          </p>
+          <p className="mt-3 text-[14px] text-text-2">
             Up to 24 sessions &middot; 90-day refund guarantee
           </p>
-          <Link
-            href="/pricing"
-            className="mt-6 inline-flex h-12 items-center rounded-lg bg-[#7A60E4] px-8 text-sm font-semibold text-white shadow-sm hover:bg-[#6950d0] transition-colors"
-          >
-            View Pricing Details
-          </Link>
+          <Button size="lg" className="mt-6" asChild>
+            <Link href="/signup">Get started free</Link>
+          </Button>
+          <p className="mt-3 text-[12px] text-text-3">
+            Sign up free, upgrade when you&apos;re ready
+          </p>
         </div>
       </div>
     </section>
@@ -411,57 +424,35 @@ function PricingTeaserSection() {
 /* ---------- FAQ ---------- */
 
 function FAQSection() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null)
   const items = FAQ_ITEMS.slice(0, 6)
 
   return (
-    <section className="bg-gray-50 py-20 md:py-28">
+    <section className="py-20 md:py-28">
       <div className="mx-auto max-w-3xl px-6">
         <div className="text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-[#7A60E4]">FAQ</p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">
+          <p className="tiny text-primary">FAQ</p>
+          <h2 className="display mt-3 text-[28px] md:text-[44px]">
             Common questions
           </h2>
         </div>
 
-        <div className="mt-14 divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white shadow-sm">
-          {items.map((item, i) => (
-            <div key={i}>
-              <button
-                className="flex w-full items-center justify-between px-6 py-5 text-left"
-                onClick={() => setOpenIndex(openIndex === i ? null : i)}
-                aria-expanded={openIndex === i}
-              >
-                <span className="text-sm font-medium text-gray-900 pr-4">{item.q}</span>
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={`shrink-0 text-gray-400 transition-transform duration-200 ${openIndex === i ? "rotate-180" : ""}`}
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              <div
-                className={`overflow-hidden transition-all duration-200 ${
-                  openIndex === i ? "max-h-[500px] pb-5" : "max-h-0"
-                }`}
-              >
-                <p className="px-6 text-sm leading-relaxed text-gray-600">{item.a}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Card className="mt-12 px-6">
+          <Accordion type="single" collapsible className="w-full">
+            {items.map((item, i) => (
+              <AccordionItem key={i} value={`item-${i}`}>
+                <AccordionTrigger>{item.q}</AccordionTrigger>
+                <AccordionContent>
+                  <p className="leading-relaxed">{item.a}</p>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </Card>
 
         <div className="mt-8 text-center">
           <Link
             href="/faqs"
-            className="text-sm font-medium text-[#7A60E4] hover:underline"
+            className="text-[14px] font-medium text-primary hover:underline"
           >
             View all FAQs &rarr;
           </Link>

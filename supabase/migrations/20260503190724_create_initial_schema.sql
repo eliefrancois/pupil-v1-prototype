@@ -32,10 +32,9 @@
     - Messages are scoped to conversation participants only
 */
 
--- Users table
+-- Users table (id = auth.uid() from Supabase Auth)
 CREATE TABLE IF NOT EXISTS users (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth_id uuid UNIQUE,
+  id uuid PRIMARY KEY,
   email text UNIQUE NOT NULL,
   full_name text NOT NULL DEFAULT '',
   role text NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'mentor', 'admin', 'parent')),
@@ -49,28 +48,32 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "Users can insert own record"
+  ON users FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = id);
+
 CREATE POLICY "Users can read own data"
   ON users FOR SELECT TO authenticated
-  USING (auth.uid() = auth_id);
+  USING (auth.uid() = id);
 
 CREATE POLICY "Users can update own data"
   ON users FOR UPDATE TO authenticated
-  USING (auth.uid() = auth_id)
-  WITH CHECK (auth.uid() = auth_id);
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Admins can read all users"
   ON users FOR SELECT TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM users u WHERE u.auth_id = auth.uid() AND u.role = 'admin')
+    EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'admin')
   );
 
 CREATE POLICY "Admins can update all users"
   ON users FOR UPDATE TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM users u WHERE u.auth_id = auth.uid() AND u.role = 'admin')
+    EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'admin')
   )
   WITH CHECK (
-    EXISTS (SELECT 1 FROM users u WHERE u.auth_id = auth.uid() AND u.role = 'admin')
+    EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'admin')
   );
 
 -- Student profiles
@@ -94,27 +97,27 @@ ALTER TABLE student_profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Students can read own profile"
   ON student_profiles FOR SELECT TO authenticated
   USING (
-    user_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+    user_id = auth.uid()
   );
 
 CREATE POLICY "Students can update own profile"
   ON student_profiles FOR UPDATE TO authenticated
-  USING (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()))
-  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "Students can insert own profile"
   ON student_profiles FOR INSERT TO authenticated
-  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "Mentors can read matched student profiles"
   ON student_profiles FOR SELECT TO authenticated
   USING (
-    matched_mentor_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+    matched_mentor_id = auth.uid()
   );
 
 CREATE POLICY "Admins can manage all student profiles"
   ON student_profiles FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Mentor profiles
 CREATE TABLE IF NOT EXISTS mentor_profiles (
@@ -140,27 +143,27 @@ ALTER TABLE mentor_profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Mentors can read own profile"
   ON mentor_profiles FOR SELECT TO authenticated
-  USING (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+  USING (user_id = auth.uid());
 
 CREATE POLICY "Mentors can update own profile"
   ON mentor_profiles FOR UPDATE TO authenticated
-  USING (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()))
-  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "Students can view mentor profiles"
   ON mentor_profiles FOR SELECT TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'student')
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'student')
   );
 
 CREATE POLICY "Admins can manage all mentor profiles"
   ON mentor_profiles FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can update mentor profiles"
   ON mentor_profiles FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'))
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Session bookings
 CREATE TABLE IF NOT EXISTS session_bookings (
@@ -180,28 +183,28 @@ ALTER TABLE session_bookings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own session bookings"
   ON session_bookings FOR SELECT TO authenticated
   USING (
-    mentor_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-    OR student_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+    mentor_id = auth.uid()
+    OR student_id = auth.uid()
   );
 
 CREATE POLICY "Students can insert bookings"
   ON session_bookings FOR INSERT TO authenticated
-  WITH CHECK (student_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+  WITH CHECK (student_id = auth.uid());
 
 CREATE POLICY "Users can update own bookings"
   ON session_bookings FOR UPDATE TO authenticated
   USING (
-    mentor_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-    OR student_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+    mentor_id = auth.uid()
+    OR student_id = auth.uid()
   )
   WITH CHECK (
-    mentor_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-    OR student_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+    mentor_id = auth.uid()
+    OR student_id = auth.uid()
   );
 
 CREATE POLICY "Admins can manage all bookings"
   ON session_bookings FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Conversations
 CREATE TABLE IF NOT EXISTS conversations (
@@ -216,12 +219,12 @@ ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Participants can view conversations"
   ON conversations FOR SELECT TO authenticated
   USING (
-    (SELECT id FROM users WHERE auth_id = auth.uid()) = ANY(participant_ids)
+    auth.uid() = ANY(participant_ids)
   );
 
 CREATE POLICY "Admins can view all conversations"
   ON conversations FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Messages
 CREATE TABLE IF NOT EXISTS messages (
@@ -242,23 +245,23 @@ CREATE POLICY "Conversation participants can view messages"
   USING (
     conversation_id IN (
       SELECT id FROM conversations
-      WHERE (SELECT id FROM users WHERE auth_id = auth.uid()) = ANY(participant_ids)
+      WHERE auth.uid() = ANY(participant_ids)
     )
   );
 
 CREATE POLICY "Users can insert messages in own conversations"
   ON messages FOR INSERT TO authenticated
   WITH CHECK (
-    sender_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+    sender_id = auth.uid()
     AND conversation_id IN (
       SELECT id FROM conversations
-      WHERE (SELECT id FROM users WHERE auth_id = auth.uid()) = ANY(participant_ids)
+      WHERE auth.uid() = ANY(participant_ids)
     )
   );
 
 CREATE POLICY "Admins can view all messages"
   ON messages FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Session icebreakers
 CREATE TABLE IF NOT EXISTS session_icebreakers (
@@ -276,8 +279,8 @@ CREATE POLICY "Session participants can view icebreakers"
   USING (
     session_id IN (
       SELECT id FROM session_bookings
-      WHERE mentor_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-        OR student_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+      WHERE mentor_id = auth.uid()
+        OR student_id = auth.uid()
     )
   );
 
@@ -299,8 +302,8 @@ CREATE POLICY "Session participants can view breakdowns"
   USING (
     session_id IN (
       SELECT id FROM session_bookings
-      WHERE mentor_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-        OR student_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+      WHERE mentor_id = auth.uid()
+        OR student_id = auth.uid()
     )
   );
 
@@ -321,17 +324,17 @@ ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view ratings they gave or received"
   ON ratings FOR SELECT TO authenticated
   USING (
-    from_user_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-    OR to_user_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
+    from_user_id = auth.uid()
+    OR to_user_id = auth.uid()
   );
 
 CREATE POLICY "Users can insert ratings"
   ON ratings FOR INSERT TO authenticated
-  WITH CHECK (from_user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+  WITH CHECK (from_user_id = auth.uid());
 
 CREATE POLICY "Admins can view all ratings"
   ON ratings FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Access codes
 CREATE TABLE IF NOT EXISTS access_codes (
@@ -353,12 +356,12 @@ CREATE POLICY "Anyone can validate codes"
 
 CREATE POLICY "Admins can manage access codes"
   ON access_codes FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can update access codes"
   ON access_codes FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'))
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Eligibility applications
 CREATE TABLE IF NOT EXISTS eligibility_applications (
@@ -382,12 +385,12 @@ CREATE POLICY "Anyone can submit eligibility applications"
 
 CREATE POLICY "Admins can view all applications"
   ON eligibility_applications FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can update applications"
   ON eligibility_applications FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'))
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Safety flags
 CREATE TABLE IF NOT EXISTS safety_flags (
@@ -406,16 +409,16 @@ ALTER TABLE safety_flags ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Admins can view all flags"
   ON safety_flags FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can insert flags"
   ON safety_flags FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can update flags"
   ON safety_flags FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'))
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Safety rules
 CREATE TABLE IF NOT EXISTS safety_rules (
@@ -431,12 +434,12 @@ ALTER TABLE safety_rules ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Admins can view safety rules"
   ON safety_rules FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can update safety rules"
   ON safety_rules FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'))
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Parent links
 CREATE TABLE IF NOT EXISTS parent_links (
@@ -452,7 +455,7 @@ ALTER TABLE parent_links ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Parents can view own links"
   ON parent_links FOR SELECT TO authenticated
-  USING (parent_user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()));
+  USING (parent_user_id = auth.uid());
 
 -- Waitlist signups
 CREATE TABLE IF NOT EXISTS waitlist_signups (
@@ -477,7 +480,7 @@ CREATE POLICY "Anyone can insert waitlist signups"
 
 CREATE POLICY "Admins can view waitlist signups"
   ON waitlist_signups FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Mentor invites
 CREATE TABLE IF NOT EXISTS mentor_invites (
@@ -494,20 +497,19 @@ ALTER TABLE mentor_invites ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Admins can manage invites"
   ON mentor_invites FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can create invites"
   ON mentor_invites FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Admins can update invites"
   ON mentor_invites FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'))
-  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE auth_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_session_bookings_mentor ON session_bookings(mentor_id, starts_at);
 CREATE INDEX IF NOT EXISTS idx_session_bookings_student ON session_bookings(student_id, starts_at);
-CREATE INDEX IF NOT EXISTS idx_users_auth_id ON users(auth_id);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);

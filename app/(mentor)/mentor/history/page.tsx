@@ -1,108 +1,27 @@
-'use client'
-
 import Link from 'next/link'
-import { SESSIONS, MATCHING_QUEUE, daysFromNow } from '@/lib/mock-data'
+import { redirect } from 'next/navigation'
+import { ArrowRight, Calendar } from 'lucide-react'
+
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
-import Stars from '@/components/stars'
-import { ArrowRight } from 'lucide-react'
+import { getCurrentUser } from '@/lib/supabase/get-user'
+import { getMentorSessions } from '@/lib/supabase/queries'
 
-/* ---------- Mock mentor session history ---------- */
+export default async function MentorHistoryPage() {
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?next=/mentor/history')
 
-interface MentorSession {
-  id: string
-  studentName: string
-  startsAt: string
-  duration: number
-  status: 'completed' | 'cancelled'
-  rated?: number
-  hasBreakdown?: boolean
-}
-
-const MENTOR_SESSIONS: MentorSession[] = [
-  {
-    id: 'mh_1',
-    studentName: 'Riley Park',
-    startsAt: daysFromNow(-7, 16, 0),
-    duration: 30,
-    status: 'completed',
-    rated: 5,
-    hasBreakdown: true,
-  },
-  {
-    id: 'mh_2',
-    studentName: 'Marcus Bell',
-    startsAt: daysFromNow(-10, 17, 0),
-    duration: 30,
-    status: 'completed',
-    rated: 4,
-    hasBreakdown: true,
-  },
-  {
-    id: 'mh_3',
-    studentName: 'Riley Park',
-    startsAt: daysFromNow(-21, 16, 0),
-    duration: 30,
-    status: 'completed',
-    rated: 5,
-    hasBreakdown: true,
-  },
-  {
-    id: 'mh_4',
-    studentName: 'Sofia Reyes',
-    startsAt: daysFromNow(-14, 15, 0),
-    duration: 30,
-    status: 'completed',
-    hasBreakdown: false,
-  },
-  {
-    id: 'mh_5',
-    studentName: 'Theo Bennett',
-    startsAt: daysFromNow(-18, 14, 0),
-    duration: 30,
-    status: 'completed',
-    hasBreakdown: false,
-  },
-  {
-    id: 'mh_6',
-    studentName: 'Jordan Tate',
-    startsAt: daysFromNow(-28, 15, 30),
-    duration: 30,
-    status: 'cancelled',
-  },
-  {
-    id: 'mh_7',
-    studentName: 'Riley Park',
-    startsAt: daysFromNow(-35, 16, 0),
-    duration: 30,
-    status: 'completed',
-    rated: 4,
-    hasBreakdown: true,
-  },
-  {
-    id: 'mh_8',
-    studentName: 'Anya Petrov',
-    startsAt: daysFromNow(-5, 10, 0),
-    duration: 30,
-    status: 'completed',
-    rated: 5,
-    hasBreakdown: true,
-  },
-  {
-    id: 'mh_9',
-    studentName: 'Riley Park',
-    startsAt: daysFromNow(-49, 16, 0),
-    duration: 30,
-    status: 'cancelled',
-  },
-]
-
-/* ---------- Page ---------- */
-
-export default function MentorHistoryPage() {
-  const completed = MENTOR_SESSIONS.filter((s) => s.status === 'completed')
-  const cancelled = MENTOR_SESSIONS.filter((s) => s.status === 'cancelled')
+  const allSessions = await getMentorSessions(user.id)
+  const pastSessions = allSessions.filter(
+    (s) => s.status === 'completed' || s.status === 'cancelled',
+  )
+  const completedCount = pastSessions.filter(
+    (s) => s.status === 'completed',
+  ).length
+  const cancelledCount = pastSessions.filter(
+    (s) => s.status === 'cancelled',
+  ).length
 
   return (
     <div className="h-full overflow-y-auto">
@@ -110,23 +29,36 @@ export default function MentorHistoryPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Session history</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {completed.length} completed &middot; {cancelled.length} cancelled
+            {completedCount} completed &middot; {cancelledCount} cancelled
           </p>
         </div>
 
-        <div className="space-y-3">
-          {MENTOR_SESSIONS.map((session) => {
-            const start = new Date(session.startsAt)
-            const isCompleted = session.status === 'completed'
-            const isCancelled = session.status === 'cancelled'
+        {pastSessions.length === 0 ? (
+          <Card className="p-12 text-center">
+            <CardContent className="flex flex-col items-center p-0">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-primary">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <p className="text-[15px] font-semibold text-text">
+                No past sessions yet
+              </p>
+              <p className="mt-1 max-w-xs text-[13px] text-text-2">
+                Sessions you complete with mentees will show up here with the
+                recording and transcript.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {pastSessions.map((session) => {
+              const start = new Date(session.starts_at)
+              const isCompleted = session.status === 'completed'
+              const isCancelled = session.status === 'cancelled'
+              const studentName = session.student?.full_name ?? 'Student'
 
-            return (
-              <Card key={session.id}>
+              const cardBody = (
                 <CardContent className="flex items-center gap-4 p-4">
-                  {/* Avatar */}
-                  <Avatar alt={session.studentName} size="default" />
-
-                  {/* Date & time */}
+                  <Avatar alt={studentName} size="default" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900">
                       {start.toLocaleDateString('en-US', {
@@ -141,38 +73,33 @@ export default function MentorHistoryPage() {
                       })}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {session.duration} min &middot; {session.studentName}
+                      {session.duration} min &middot; {studentName}
                     </p>
                   </div>
-
-                  {/* Status badge */}
-                  {isCompleted && (
-                    <Badge variant="success">Completed</Badge>
-                  )}
-                  {isCancelled && (
-                    <Badge variant="danger">Cancelled</Badge>
-                  )}
-
-                  {/* Rating */}
-                  {session.rated != null && (
-                    <Stars value={session.rated} size={14} />
-                  )}
-
-                  {/* Breakdown link */}
-                  {session.hasBreakdown && (
-                    <Link
-                      href={`/mentor/session/${session.id}/breakdown`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-[#7A60E4] hover:underline"
-                    >
-                      Breakdown
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  )}
+                  {isCompleted && <Badge variant="success">Completed</Badge>}
+                  {isCancelled && <Badge variant="danger">Cancelled</Badge>}
+                  {isCompleted ? (
+                    <ArrowRight className="h-4 w-4 text-text-3" />
+                  ) : null}
                 </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+              )
+
+              return isCompleted ? (
+                <Link
+                  key={session.id}
+                  href={`/mentor/session/${session.id}/breakdown`}
+                  className="block"
+                >
+                  <Card className="transition-colors hover:bg-surface-2">
+                    {cardBody}
+                  </Card>
+                </Link>
+              ) : (
+                <Card key={session.id}>{cardBody}</Card>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

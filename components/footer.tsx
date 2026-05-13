@@ -1,50 +1,53 @@
-import Link from "next/link"
+import Link from 'next/link'
+
+import BrandMark from '@/components/brand-mark'
 
 const productLinks = [
-  { label: "For Parents", href: "/" },
-  { label: "For Students", href: "/students" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "MentorGPT Waitlist", href: "/waitlist" },
+  { label: 'For Parents', href: '/' },
+  { label: 'For Students', href: '/students' },
+  { label: 'Browse Mentors', href: '/mentors' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'MentorGPT Waitlist', href: '/waitlist' },
+]
+
+const mentorLinks = [
+  { label: 'Apply to Mentor', href: '/mentor-signup' },
+  { label: 'Mentor Login', href: '/login' },
 ]
 
 const companyLinks = [
-  { label: "Free Access", href: "/access" },
-  { label: "School Pilot", href: "#" },
-  { label: "Newsroom", href: "/newsroom" },
-  { label: "FAQs", href: "/faqs" },
+  { label: 'Free Access', href: '/access' },
+  { label: 'School Pilot', href: '#' },
+  { label: 'Newsroom', href: '/newsroom' },
+  { label: 'FAQs', href: '/faqs' },
 ]
 
 const legalLinks = [
-  { label: "Privacy", href: "/legal/privacy" },
-  { label: "Terms", href: "/legal/terms" },
-  { label: "Parental Consent", href: "/legal/parental-consent" },
+  { label: 'Privacy', href: '/legal/privacy' },
+  { label: 'Terms', href: '/legal/terms' },
+  { label: 'Parental Consent', href: '/legal/parental-consent' },
 ]
 
 export default function Footer() {
   return (
-    <footer className="border-t border-gray-200 bg-gray-50">
-      <div className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
-          {/* Brand column */}
+    <footer className="border-t border-border bg-surface-2">
+      <div className="mx-auto max-w-page px-6 py-14">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-4">
-            <Link href="/" className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#7A60E4]" />
-              <span className="text-xl font-bold text-[#1A1A2E]">pupil</span>
-            </Link>
-            <p className="max-w-xs text-sm leading-relaxed text-gray-500">
+            <BrandMark size="md" />
+            <p className="max-w-xs text-[14px] leading-relaxed text-text-2">
               College guidance your family can trust. Near-peer mentors who get you.
             </p>
           </div>
 
-          {/* Product */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">Product</h3>
+            <h3 className="tiny mb-3">Product</h3>
             <ul className="space-y-2">
               {productLinks.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-gray-500 transition-colors hover:text-gray-900"
+                    className="text-[14px] text-text-2 transition-colors hover:text-text"
                   >
                     {link.label}
                   </Link>
@@ -53,15 +56,30 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Company */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">Company</h3>
+            <h3 className="tiny mb-3">Mentors</h3>
+            <ul className="space-y-2">
+              {mentorLinks.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-[14px] text-text-2 transition-colors hover:text-text"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="tiny mb-3">Company</h3>
             <ul className="space-y-2">
               {companyLinks.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-gray-500 transition-colors hover:text-gray-900"
+                    className="text-[14px] text-text-2 transition-colors hover:text-text"
                   >
                     {link.label}
                   </Link>
@@ -70,15 +88,14 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Legal */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">Legal</h3>
+            <h3 className="tiny mb-3">Legal</h3>
             <ul className="space-y-2">
               {legalLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-gray-500 transition-colors hover:text-gray-900"
+                    className="text-[14px] text-text-2 transition-colors hover:text-text"
                   >
                     {link.label}
                   </Link>
@@ -88,9 +105,8 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Copyright */}
-        <div className="mt-12 border-t border-gray-200 pt-6">
-          <p className="text-center text-xs text-gray-400">
+        <div className="mt-12 border-t border-border pt-6">
+          <p className="text-center text-[12px] text-text-3">
             &copy; {new Date().getFullYear()} Pupil. All rights reserved.
           </p>
         </div>

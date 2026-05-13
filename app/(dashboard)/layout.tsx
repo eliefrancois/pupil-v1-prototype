@@ -1,10 +1,17 @@
 import Sidebar from '@/components/sidebar'
+import { getCurrentUser } from '@/lib/supabase/get-user'
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const user = await getCurrentUser()
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar role="student" />
-      <main className="flex-1 overflow-hidden">{children}</main>
+    <div className="flex min-h-screen bg-bg">
+      <Sidebar role="student" user={user} />
+      <main className="flex-1 min-w-0 overflow-y-auto bg-bg">{children}</main>
     </div>
   )
 }

@@ -46,21 +46,23 @@ export function EmailButton({
       {/* All other clients */}
       <Button
         href={href}
-        style={{
-          display: 'inline-block',
-          backgroundColor: bg,
-          color: fg,
-          fontFamily: fonts.sans,
-          fontSize: '16px',
-          fontWeight: 600,
-          lineHeight: '20px',
-          padding: '14px 28px',
-          textDecoration: 'none',
-          textAlign: 'center',
-          borderRadius: '8px',
-          border: `1px solid ${stroke}`,
-          msoHide: 'all', // hide the HTML button in Outlook (VML version shows)
-        }}
+        style={
+          {
+            display: 'inline-block',
+            backgroundColor: bg,
+            color: fg,
+            fontFamily: fonts.sans,
+            fontSize: '16px',
+            fontWeight: 600,
+            lineHeight: '20px',
+            padding: '14px 28px',
+            textDecoration: 'none',
+            textAlign: 'center',
+            borderRadius: '8px',
+            border: `1px solid ${stroke}`,
+            msoHide: 'all', // hide the HTML button in Outlook (VML version shows)
+          } as React.CSSProperties
+        }
       >
         {children}
       </Button>

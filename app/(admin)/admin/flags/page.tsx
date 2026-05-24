@@ -40,7 +40,9 @@ export default async function FlagsPage() {
     .limit(200)
 
   // Resolve sender names + moderation info
-  const senderIds = [...new Set((flagged ?? []).map((m) => m.sender_id))]
+  const senderIds = Array.from(
+    new Set((flagged ?? []).map((m) => m.sender_id))
+  )
   let senderMap: Record<string, { name: string; strikes: number; status: string }> = {}
   if (senderIds.length > 0) {
     const { data: users } = await supabase

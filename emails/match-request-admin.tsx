@@ -122,7 +122,7 @@ export default function MatchRequestAdminEmail({
       )}
 
       <Section style={{ padding: '4px 0 4px 0', textAlign: 'center' }}>
-        <EmailButton href={`${SITE_URL}/admin/requests`}>
+        <EmailButton href={`${SITE_URL}/admin/matching`}>
           Review in admin
         </EmailButton>
       </Section>

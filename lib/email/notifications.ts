@@ -14,6 +14,8 @@ import MentorClaimEmail from '@/emails/mentor-claim'
 import MatchRequestForwardedEmail from '@/emails/match-request-forwarded'
 import MatchRequestDeclinedEmail from '@/emails/match-request-declined'
 import MatchRequestAdminEmail from '@/emails/match-request-admin'
+import StudentMatchedEmail from '@/emails/student-matched'
+import MentorAssignedEmail from '@/emails/mentor-assigned'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 const RESEND_KEY = process.env.RESEND_API_KEY
@@ -117,6 +119,50 @@ export async function notifyGhostMentorToClaim(
     html: await render(node),
     text: await render(node, { plainText: true }),
     tag: 'mentor_claim',
+  })
+}
+
+/** Sent to student when admin assigns a mentor. */
+export async function notifyStudentMatched(payload: {
+  studentEmail: string
+  studentName: string
+  mentorName: string
+  mentorUniversity: string | null
+}) {
+  const node = StudentMatchedEmail({
+    studentName: payload.studentName,
+    mentorName: payload.mentorName,
+    mentorUniversity: payload.mentorUniversity,
+  })
+
+  await deliver({
+    to: payload.studentEmail,
+    subject: `You're matched with ${payload.mentorName} on Pupil`,
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: 'student_matched',
+  })
+}
+
+/** Sent to mentor when admin assigns them a mentee. */
+export async function notifyMentorAssigned(payload: {
+  mentorEmail: string
+  mentorName: string
+  studentName: string
+  studentGrade: number | null
+}) {
+  const node = MentorAssignedEmail({
+    mentorName: payload.mentorName,
+    studentName: payload.studentName,
+    studentGrade: payload.studentGrade,
+  })
+
+  await deliver({
+    to: payload.mentorEmail,
+    subject: `${payload.studentName} is your new mentee on Pupil`,
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: 'mentor_assigned',
   })
 }
 

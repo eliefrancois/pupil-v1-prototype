@@ -9,11 +9,8 @@ export default async function AdminLayout({
 }) {
   const user = await getCurrentUser()
 
-  // Fetch counts for sidebar badges (unreviewed severe flags + open match
-  // requests waiting on admin action). Run in parallel so we don't pay two
-  // round-trips on every admin page render.
   let severeCount = 0
-  let pendingRequestsCount = 0
+  let pendingMatchRequestsCount = 0
   if (user?.role === 'admin') {
     const supabase = createClient()
     const [flagsRes, requestsRes] = await Promise.all([
@@ -28,12 +25,12 @@ export default async function AdminLayout({
         .eq('status', 'pending'),
     ])
     severeCount = flagsRes.count ?? 0
-    pendingRequestsCount = requestsRes.count ?? 0
+    pendingMatchRequestsCount = requestsRes.count ?? 0
   }
 
   const badges: Record<string, number> = {}
   if (severeCount > 0) badges.flags = severeCount
-  if (pendingRequestsCount > 0) badges.requests = pendingRequestsCount
+  if (pendingMatchRequestsCount > 0) badges.matching = pendingMatchRequestsCount
 
   return (
     <div className="flex min-h-screen bg-bg">

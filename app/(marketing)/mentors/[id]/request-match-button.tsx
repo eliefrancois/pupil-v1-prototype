@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
+  AlertCircle,
   CheckCircle2,
   Loader as Loader2,
   Send,
@@ -13,14 +14,21 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { MAX_MATCH_REQUESTS } from '@/lib/constants'
 import { createMatchRequest } from '@/lib/actions/match-request-actions'
 
 const MESSAGE_MAX_CHARS = 500
 
 type ViewerState =
   | { kind: 'guest' }
-  | { kind: 'student'; alreadyRequested: boolean }
-  | { kind: 'mentor' } // can't request other mentors
+  | {
+      kind: 'student'
+      alreadyRequested: boolean
+      requestsRemaining: number
+      requestsMax: number
+      atCap: boolean
+    }
+  | { kind: 'mentor' }
   | { kind: 'admin' }
 
 interface RequestMatchButtonProps {
@@ -30,15 +38,6 @@ interface RequestMatchButtonProps {
   viewer: ViewerState
 }
 
-/**
- * Auth-aware "Request match" CTA on the mentor detail page.
- *
- * - Guest: sends them to /signup with a return path back here.
- * - Student (no prior request): opens a quick message modal, submits via
- *   server action, shows confirmation.
- * - Student (already requested): shows the requested-state pill.
- * - Mentor or admin: shows nothing (they don't request matches).
- */
 export default function RequestMatchButton({
   mentorId,
   mentorDisplayName,
@@ -50,6 +49,7 @@ export default function RequestMatchButton({
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [successRemaining, setSuccessRemaining] = useState<number | null>(null)
   const [error, setError] = useState('')
 
   if (viewer.kind === 'mentor' || viewer.kind === 'admin') {
@@ -57,9 +57,6 @@ export default function RequestMatchButton({
   }
 
   if (viewer.kind === 'guest') {
-    // Honor the existing ?next pattern used by /login. Signup doesn't read
-    // ?next today, but adding the param now keeps the URL forward-compatible
-    // for when we deep-link the post-onboarding redirect.
     const returnTo = `/mentors/${mentorId}`
     return (
       <div className="mt-8 rounded-[var(--radius)] border border-primary-light bg-primary-soft p-5">
@@ -73,8 +70,8 @@ export default function RequestMatchButton({
                 Want to work with {firstName(mentorDisplayName)}?
               </p>
               <p className="text-[13px] text-text-2">
-                Sign up free, then request a match. Our team handles the
-                intro.
+                Sign up free, then request a match. You can request up to{' '}
+                {MAX_MATCH_REQUESTS} mentors while we find your match.
               </p>
             </div>
           </div>
@@ -95,7 +92,6 @@ export default function RequestMatchButton({
     )
   }
 
-  // Student
   if (viewer.alreadyRequested) {
     return (
       <div className="mt-8 rounded-[var(--radius)] border border-border bg-bg-2 p-5">
@@ -108,13 +104,37 @@ export default function RequestMatchButton({
               Request sent
             </p>
             <p className="text-[13px] text-text-2">
-              We&apos;ll reach out as soon as an admin reviews it. You can
-              track it on your dashboard.
+              We&apos;re working on your match. Track it on your dashboard.
             </p>
           </div>
           <Button asChild variant="ghost" size="sm" className="ml-auto">
             <Link href="/dashboard">View dashboard</Link>
           </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (viewer.atCap) {
+    return (
+      <div className="mt-8 rounded-[var(--radius)] border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.06)] p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-warning/10 text-warning">
+            <AlertCircle className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[14px] font-semibold text-text">
+              No match requests left
+            </p>
+            <p className="text-[13px] text-text-2">
+              You&apos;ve used all {viewer.requestsMax} requests. Cancel one on
+              your dashboard or wait until you&apos;re matched before requesting
+              another mentor.
+            </p>
+            <Button asChild variant="outline" size="sm" className="mt-3">
+              <Link href="/dashboard">Manage requests</Link>
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -130,9 +150,14 @@ export default function RequestMatchButton({
       setError(result.error)
       return
     }
+    setSuccessRemaining(result.remaining)
     setSuccess(true)
-    // Soft refresh so the page re-reads the new request state on close.
     router.refresh()
+  }
+
+  function openModal() {
+    if (viewer.kind !== 'student' || viewer.atCap) return
+    setOpen(true)
   }
 
   return (
@@ -149,16 +174,16 @@ export default function RequestMatchButton({
               </p>
               <p className="text-[13px] text-text-2">
                 {mentorIsGhost
-                  ? `${firstName(mentorDisplayName)} hasn't been onboarded yet. If you request, we'll reach out and set it up.`
-                  : `Our team will review and send the intro within a few days.`}
+                  ? `${firstName(mentorDisplayName)} hasn't joined Pupil yet. We'll reach out to get them onboarded.`
+                  : `Our team uses your request when pairing you with a mentor.`}{' '}
+                <span className="font-medium text-text">
+                  {viewer.requestsRemaining} of {viewer.requestsMax} requests
+                  left.
+                </span>
               </p>
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setOpen(true)}
-            className="sm:shrink-0"
-          >
+          <Button size="sm" onClick={openModal} className="sm:shrink-0">
             <Send className="mr-1.5 h-3.5 w-3.5" />
             Request match
           </Button>
@@ -181,8 +206,9 @@ export default function RequestMatchButton({
                 </div>
                 <h3 className="display text-[20px]">Request sent</h3>
                 <p className="mt-2 text-[14px] text-text-2">
-                  We&apos;ll review and reach out within a few days. You can
-                  track this on your dashboard.
+                  {successRemaining !== null
+                    ? `You have ${successRemaining} request${successRemaining === 1 ? '' : 's'} left.`
+                    : 'Track this on your dashboard.'}
                 </p>
                 <div className="mt-6 flex w-full gap-2">
                   <Button
@@ -209,8 +235,11 @@ export default function RequestMatchButton({
                       Request {firstName(mentorDisplayName)}
                     </h3>
                     <p className="mt-1 text-[13px] text-text-2">
-                      Tell us a bit about what you want help with. Optional
-                      but it helps us match faster.
+                      Optional note for our matching team.{' '}
+                      <span className="font-medium text-text">
+                        {viewer.requestsRemaining} of {viewer.requestsMax}{' '}
+                        requests left.
+                      </span>
                     </p>
                   </div>
                   <button
@@ -231,7 +260,9 @@ export default function RequestMatchButton({
 
                 <Textarea
                   value={message}
-                  onChange={(e) => setMessage(e.target.value.slice(0, MESSAGE_MAX_CHARS))}
+                  onChange={(e) =>
+                    setMessage(e.target.value.slice(0, MESSAGE_MAX_CHARS))
+                  }
                   placeholder={`e.g. I'm applying to schools like ${truncate(mentorDisplayName, 18)}'s and want help with essays.`}
                   rows={4}
                   className="resize-none"
@@ -250,11 +281,7 @@ export default function RequestMatchButton({
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1"
-                    disabled={submitting}
-                  >
+                  <Button type="submit" className="flex-1" disabled={submitting}>
                     {submitting ? (
                       <>
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

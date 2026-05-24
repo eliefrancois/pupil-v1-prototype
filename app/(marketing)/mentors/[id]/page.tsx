@@ -8,6 +8,7 @@ import type { PublicMentor } from '@/lib/types/mentor'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MENTOR_SPECIALTIES_SET } from '@/lib/constants'
+import { getStudentMatchRequestQuota } from '@/lib/matching/request-quota'
 
 import RequestMatchButton from './request-match-button'
 
@@ -38,7 +39,13 @@ export async function generateMetadata({
 
 type ViewerState =
   | { kind: 'guest' }
-  | { kind: 'student'; alreadyRequested: boolean }
+  | {
+      kind: 'student'
+      alreadyRequested: boolean
+      requestsRemaining: number
+      requestsMax: number
+      atCap: boolean
+    }
   | { kind: 'mentor' }
   | { kind: 'admin' }
 
@@ -61,15 +68,24 @@ async function loadViewerState(
   if (profile.role === 'mentor') return { kind: 'mentor' }
   if (profile.role === 'admin') return { kind: 'admin' }
 
-  const { data: existingRequest } = await supabase
-    .from('match_requests')
-    .select('id')
-    .eq('student_id', user.id)
-    .eq('mentor_id', mentorId)
-    .in('status', ['pending', 'forwarded', 'accepted'])
-    .maybeSingle<{ id: string }>()
+  const [{ data: existingRequest }, quota] = await Promise.all([
+    supabase
+      .from('match_requests')
+      .select('id')
+      .eq('student_id', user.id)
+      .eq('mentor_id', mentorId)
+      .in('status', ['pending', 'forwarded', 'accepted'])
+      .maybeSingle<{ id: string }>(),
+    getStudentMatchRequestQuota(user.id),
+  ])
 
-  return { kind: 'student', alreadyRequested: !!existingRequest }
+  return {
+    kind: 'student',
+    alreadyRequested: !!existingRequest,
+    requestsRemaining: quota.remaining,
+    requestsMax: quota.max,
+    atCap: quota.atCap,
+  }
 }
 
 export default async function MentorDetailPage({

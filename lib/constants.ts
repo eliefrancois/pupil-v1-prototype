@@ -46,6 +46,9 @@ export const MENTOR_SPECIALTIES_SET: ReadonlySet<string> = new Set(
   MENTOR_SPECIALTIES
 )
 
+/** Max outstanding mentor requests per student (pending or forwarded). */
+export const MAX_MATCH_REQUESTS = 5
+
 // ---------- Navigation ----------
 
 export const NAV_STUDENT: NavItem[] = [
@@ -68,7 +71,6 @@ export const NAV_MENTOR: NavItem[] = [
 
 export const NAV_ADMIN: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/admin", icon: "Home" },
-  { id: "requests", label: "Match Requests", href: "/admin/requests", icon: "Inbox" },
   { id: "matching", label: "Matching Queue", href: "/admin/matching", icon: "Users" },
   { id: "mentors", label: "Mentors", href: "/admin/mentors", icon: "GraduationCap" },
   { id: "students", label: "Students", href: "/admin/students", icon: "BookOpen" },

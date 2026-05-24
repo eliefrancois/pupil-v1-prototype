@@ -13,7 +13,7 @@ import {
   isMatchQueueEligible,
 } from '@/lib/scheduling/canonical-slots'
 
-import MatchRow from './match-row'
+import MatchRow, { type StudentPendingRequest } from './match-row'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +31,7 @@ type StudentRow = {
   careers: string[]
   availability_slots: string[]
   created_at: string
+  pending_requests: StudentPendingRequest[]
 }
 
 type MentorOption = {
@@ -49,7 +50,12 @@ export default async function AdminMatchingPage({
 }: {
   searchParams: { show?: string }
 }) {
-  const showWaiting = searchParams?.show === 'waiting'
+  const tab =
+    searchParams?.show === 'waiting'
+      ? 'waiting'
+      : searchParams?.show === 'matched'
+        ? 'matched'
+        : 'queue'
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/admin/matching')
   if (user.role !== 'admin') {
@@ -71,7 +77,8 @@ export default async function AdminMatchingPage({
 
   const supabase = createClient()
 
-  const [studentsRes, mentorsRes, mentorUsersRes] = await Promise.all([
+  const [studentsRes, mentorsRes, mentorUsersRes, pendingRequestsRes] =
+    await Promise.all([
     supabase
       .from('student_profiles')
       .select(
@@ -81,10 +88,15 @@ export default async function AdminMatchingPage({
     supabase
       .from('mentor_profiles')
       .select(
-        'user_id, university, major, active_mentees_count, max_mentees, rating, availability_slots, status'
+        'user_id, university, major, active_mentees_count, max_mentees, rating, availability_slots, status, claim_status, claim_email_sent_at'
       )
       .eq('status', 'approved'),
     supabase.from('users').select('id, full_name, email, role'),
+    supabase
+      .from('match_requests')
+      .select('id, student_id, mentor_id, student_message, requested_at')
+      .eq('status', 'pending')
+      .order('requested_at', { ascending: false }),
   ])
 
   if (studentsRes.error) {
@@ -95,6 +107,12 @@ export default async function AdminMatchingPage({
   }
   if (mentorUsersRes.error) {
     console.error('[admin/matching] failed to load users', mentorUsersRes.error)
+  }
+  if (pendingRequestsRes.error) {
+    console.error(
+      '[admin/matching] failed to load match requests',
+      pendingRequestsRes.error
+    )
   }
 
   const userById = new Map(
@@ -111,6 +129,50 @@ export default async function AdminMatchingPage({
   const mentorByUserId = new Map(
     (mentorsRes.data ?? []).map((m) => [m.user_id, m])
   )
+
+  type RawPendingRequest = {
+    id: string
+    student_id: string
+    mentor_id: string
+    student_message: string | null
+    requested_at: string
+  }
+  const rawPending = (pendingRequestsRes.data ?? []) as RawPendingRequest[]
+  const pendingMentorIds = [...new Set(rawPending.map((r) => r.mentor_id))]
+  const pendingMentorProfileById = new Map<
+    string,
+    { claim_status: string; claim_email_sent_at: string | null }
+  >()
+  if (pendingMentorIds.length > 0) {
+    const { data: pendingMentorProfiles } = await supabase
+      .from('mentor_profiles')
+      .select('user_id, claim_status, claim_email_sent_at')
+      .in('user_id', pendingMentorIds)
+    for (const p of pendingMentorProfiles ?? []) {
+      pendingMentorProfileById.set(p.user_id, {
+        claim_status: p.claim_status,
+        claim_email_sent_at: p.claim_email_sent_at,
+      })
+    }
+  }
+
+  const pendingByStudent = new Map<string, StudentPendingRequest[]>()
+  for (const row of rawPending) {
+    const profile = pendingMentorProfileById.get(row.mentor_id)
+    const entry: StudentPendingRequest = {
+      id: row.id,
+      mentor_id: row.mentor_id,
+      mentor_name: mentorNameById.get(row.mentor_id) ?? 'Unknown mentor',
+      student_message: row.student_message,
+      requested_at: row.requested_at,
+      claim_status:
+        (profile?.claim_status as 'ghost' | 'claimed' | undefined) ?? null,
+      claim_email_sent_at: profile?.claim_email_sent_at ?? null,
+    }
+    const list = pendingByStudent.get(row.student_id) ?? []
+    list.push(entry)
+    pendingByStudent.set(row.student_id, list)
+  }
 
   const students: StudentRow[] = (studentsRes.data ?? [])
     .filter((row) => {
@@ -135,6 +197,7 @@ export default async function AdminMatchingPage({
         careers: row.careers ?? [],
         availability_slots: Array.from(normalizeOptIns(row.availability_slots)),
         created_at: row.created_at,
+        pending_requests: pendingByStudent.get(row.user_id) ?? [],
       }
     })
 
@@ -157,9 +220,14 @@ export default async function AdminMatchingPage({
   const waitingStudents = students.filter(
     (s) => !isMatchQueueEligible(s.availability_slots.length)
   )
-  const visibleStudents = showWaiting ? waitingStudents : eligibleStudents
-  const unmatchedCount = eligibleStudents.filter((s) => !s.matched_mentor_id)
-    .length
+  const matchedStudents = students.filter((s) => s.matched_mentor_id)
+  const queueStudents = eligibleStudents.filter((s) => !s.matched_mentor_id)
+  const visibleStudents =
+    tab === 'waiting'
+      ? waitingStudents
+      : tab === 'matched'
+        ? matchedStudents
+        : queueStudents
 
   return (
     <div className="h-full overflow-y-auto">
@@ -169,12 +237,12 @@ export default async function AdminMatchingPage({
             Mentor matching
           </h1>
           <p className="mt-1 text-[14px] text-text-2">
-            {eligibleStudents.length} in queue ·{' '}
-            <span className="font-medium text-warning">{unmatchedCount}</span>{' '}
-            unmatched
+            {queueStudents.length} need a match · {matchedStudents.length}{' '}
+            matched
             {waitingStudents.length > 0 && (
               <>
-                {' '}·{' '}
+                {' '}
+                ·{' '}
                 <span className="text-text-3">
                   {waitingStudents.length} waiting on availability
                 </span>
@@ -183,27 +251,39 @@ export default async function AdminMatchingPage({
           </p>
         </div>
 
-        {(eligibleStudents.length > 0 || waitingStudents.length > 0) && (
+        {(queueStudents.length > 0 ||
+          matchedStudents.length > 0 ||
+          waitingStudents.length > 0) && (
           <div className="flex gap-1 rounded-[var(--radius)] border border-line bg-surface-2 p-1">
             <Button
-              variant={!showWaiting ? 'default' : 'ghost'}
+              variant={tab === 'queue' ? 'default' : 'ghost'}
               size="sm"
               asChild
               className="flex-1"
             >
               <Link href="/admin/matching">
-                In queue ({eligibleStudents.length})
+                Needs match ({queueStudents.length})
               </Link>
             </Button>
             <Button
-              variant={showWaiting ? 'default' : 'ghost'}
+              variant={tab === 'matched' ? 'default' : 'ghost'}
+              size="sm"
+              asChild
+              className="flex-1"
+            >
+              <Link href="/admin/matching?show=matched">
+                Matched ({matchedStudents.length})
+              </Link>
+            </Button>
+            <Button
+              variant={tab === 'waiting' ? 'default' : 'ghost'}
               size="sm"
               asChild
               className="flex-1"
             >
               <Link href="/admin/matching?show=waiting">
                 <Clock className="h-3.5 w-3.5" />
-                Waiting on availability ({waitingStudents.length})
+                Waiting ({waitingStudents.length})
               </Link>
             </Button>
           </div>
@@ -213,24 +293,28 @@ export default async function AdminMatchingPage({
           <Card className="p-12 text-center">
             <CardContent className="p-0">
               <p className="text-[15px] font-semibold text-text">
-                {showWaiting
+                {tab === 'waiting'
                   ? 'No students waiting on availability'
-                  : students.length === 0
-                    ? 'No students yet'
-                    : 'No students in queue yet'}
+                  : tab === 'matched'
+                    ? 'No matched students yet'
+                    : students.length === 0
+                      ? 'No students yet'
+                      : 'No students need a match right now'}
               </p>
               <p className="mt-1 text-[13px] text-text-2">
-                {showWaiting
+                {tab === 'waiting'
                   ? 'Every active student has set at least the minimum availability.'
-                  : students.length === 0
-                    ? "Once students complete onboarding, they'll show up here ready to be matched."
-                    : `Students enter the queue once they pick at least ${MIN_QUEUE_SLOTS} availability slots.`}
+                  : tab === 'matched'
+                    ? 'Assign mentors from the Needs match tab. Matched pairs show up here.'
+                    : students.length === 0
+                      ? "Once students complete onboarding, they'll show up here ready to be matched."
+                      : `Students enter the queue once they pick at least ${MIN_QUEUE_SLOTS} availability slots.`}
               </p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
-            {showWaiting && (
+            {tab === 'waiting' && (
               <Card className="bg-surface-2 border-line">
                 <CardContent className="p-4 text-[13px] text-text-2">
                   These students haven&apos;t set the minimum{' '}

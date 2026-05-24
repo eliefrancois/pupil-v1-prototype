@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { MAX_MATCH_REQUESTS } from '@/lib/constants'
+import { sendGhostClaimEmail } from '@/lib/matching/ghost-claim-email'
 import { notifyAdminOfMatchRequest } from '@/lib/email/notifications'
 
 /**
@@ -11,17 +13,21 @@ import { notifyAdminOfMatchRequest } from '@/lib/email/notifications'
  *  - Caller must be authenticated and have role='student'
  *  - Max 5 outstanding (pending|forwarded) requests per student
  *  - Cannot request the same mentor twice while another request is active
+ *  - Ghost mentors: claim email sent automatically on request
  *
  * The DB has a partial unique index on (student_id, mentor_id) where
  * status IN ('pending','forwarded','accepted') as a backstop.
  */
 
-const MAX_OUTSTANDING_REQUESTS = 5
 const MESSAGE_MAX_CHARS = 500
 
 type ActionResult =
-  | { ok: true; requestId: string }
-  | { ok: false; error: string; code?: 'unauthenticated' | 'not_student' | 'cap_reached' | 'duplicate' | 'unknown' }
+  | { ok: true; requestId: string; remaining: number }
+  | {
+      ok: false
+      error: string
+      code?: 'unauthenticated' | 'not_student' | 'cap_reached' | 'duplicate' | 'unknown'
+    }
 
 export async function createMatchRequest({
   mentorId,
@@ -47,12 +53,11 @@ export async function createMatchRequest({
     }
   }
 
-  // Verify the caller is a student. Don't trust client-side role hints.
   const { data: caller } = await supabase
     .from('users')
-    .select('role')
+    .select('role, full_name')
     .eq('id', user.id)
-    .maybeSingle<{ role: string }>()
+    .maybeSingle<{ role: string; full_name: string }>()
 
   if (!caller || caller.role !== 'student') {
     return {
@@ -62,23 +67,20 @@ export async function createMatchRequest({
     }
   }
 
-  // Outstanding request cap.
   const { count: outstandingCount } = await supabase
     .from('match_requests')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', user.id)
     .in('status', ['pending', 'forwarded'])
 
-  if ((outstandingCount ?? 0) >= MAX_OUTSTANDING_REQUESTS) {
+  if ((outstandingCount ?? 0) >= MAX_MATCH_REQUESTS) {
     return {
       ok: false,
-      error: `You already have ${MAX_OUTSTANDING_REQUESTS} pending requests. Wait for an admin to action them or cancel one before adding another.`,
+      error: `You have no match requests left (${MAX_MATCH_REQUESTS} max). Cancel one on your dashboard or wait until you're matched.`,
       code: 'cap_reached',
     }
   }
 
-  // Active duplicate check (the DB has a partial unique index, but a
-  // friendly message here beats catching a constraint error).
   const { data: duplicate } = await supabase
     .from('match_requests')
     .select('id')
@@ -95,7 +97,6 @@ export async function createMatchRequest({
     }
   }
 
-  // Insert.
   const { data: inserted, error } = await supabase
     .from('match_requests')
     .insert({
@@ -108,8 +109,6 @@ export async function createMatchRequest({
     .single<{ id: string }>()
 
   if (error || !inserted) {
-    // Most likely the partial unique index caught a race; surface a clean
-    // message rather than the raw constraint name.
     if (error?.code === '23505') {
       return {
         ok: false,
@@ -124,62 +123,82 @@ export async function createMatchRequest({
     }
   }
 
-  // Fire admin notification. Don't fail the whole action if the email
-  // provider hiccups — the request is already saved.
-  void sendAdminNotification(supabase, user.id, mentorId, inserted.id, trimmed)
+  const remaining = Math.max(
+    0,
+    MAX_MATCH_REQUESTS - ((outstandingCount ?? 0) + 1)
+  )
+
+  void afterRequestCreated(
+    supabase,
+    user.id,
+    caller.full_name,
+    mentorId,
+    inserted.id,
+    trimmed
+  )
 
   revalidatePath('/dashboard')
+  revalidatePath('/admin/matching')
   revalidatePath(`/mentors/${mentorId}`)
-  return { ok: true, requestId: inserted.id }
+  return { ok: true, requestId: inserted.id, remaining }
 }
 
-async function sendAdminNotification(
+async function afterRequestCreated(
   supabase: ReturnType<typeof createClient>,
   studentId: string,
+  studentName: string,
   mentorId: string,
   requestId: string,
   message: string
 ) {
   try {
-    const [studentRes, studentProfileRes, mentorRes, mentorProfileRes] =
-      await Promise.all([
-        supabase
-          .from('users')
-          .select('full_name, email')
-          .eq('id', studentId)
-          .maybeSingle<{ full_name: string; email: string }>(),
-        supabase
-          .from('student_profiles')
-          .select('grade')
-          .eq('user_id', studentId)
-          .maybeSingle<{ grade: number | null }>(),
-        supabase
-          .from('users')
-          .select('full_name')
-          .eq('id', mentorId)
-          .maybeSingle<{ full_name: string }>(),
-        supabase
-          .from('mentor_profiles')
-          .select('claim_status')
-          .eq('user_id', mentorId)
-          .maybeSingle<{ claim_status: string }>(),
-      ])
+    const [studentProfileRes, mentorRes, mentorProfileRes] = await Promise.all([
+      supabase
+        .from('student_profiles')
+        .select('grade')
+        .eq('user_id', studentId)
+        .maybeSingle<{ grade: number | null }>(),
+      supabase
+        .from('users')
+        .select('full_name')
+        .eq('id', mentorId)
+        .maybeSingle<{ full_name: string }>(),
+      supabase
+        .from('mentor_profiles')
+        .select('claim_status')
+        .eq('user_id', mentorId)
+        .maybeSingle<{ claim_status: string }>(),
+    ])
 
-    const student = studentRes.data
     const mentor = mentorRes.data
-    if (!student || !mentor) return
+    if (!mentor) return
+
+    const isGhost = mentorProfileRes.data?.claim_status === 'ghost'
+
+    const { data: studentUser } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', studentId)
+      .maybeSingle<{ email: string }>()
 
     await notifyAdminOfMatchRequest({
-      studentName: student.full_name,
-      studentEmail: student.email,
+      studentName,
+      studentEmail: studentUser?.email ?? '',
       studentGrade: studentProfileRes.data?.grade ?? null,
       mentorName: mentor.full_name,
-      mentorIsGhost: mentorProfileRes.data?.claim_status === 'ghost',
+      mentorIsGhost: isGhost,
       message: message || null,
       requestId,
     })
+
+    if (isGhost) {
+      const claimResult = await sendGhostClaimEmail(mentorId, studentName)
+      if (!claimResult.ok) {
+        console.error('[match-request] ghost claim email failed:', claimResult.error)
+      }
+    }
   } catch (err) {
-    console.error('[match-request] admin notification failed:', err)
+    console.error('[match-request] post-create hooks failed:', err)
   }
 }
 
@@ -219,6 +238,7 @@ export async function cancelMatchRequest(
   if (error) return { ok: false, error: 'Could not cancel your request.' }
 
   revalidatePath('/dashboard')
+  revalidatePath('/admin/matching')
   revalidatePath(`/mentors/${req.mentor_id}`)
   return { ok: true }
 }

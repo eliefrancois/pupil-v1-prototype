@@ -1,16 +1,18 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Calendar,
   ChevronDown,
   ChevronUp,
   Loader as Loader2,
+  MailCheck,
+  Sparkles,
   X,
 } from 'lucide-react'
 
-import { createClient } from '@/lib/supabase/client'
+import { assignStudentMentor } from '@/lib/actions/admin-matching-actions'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +21,16 @@ import {
   NativeSelect as Select,
   NativeSelectOption as SelectOption,
 } from '@/components/ui/native-select'
+
+export interface StudentPendingRequest {
+  id: string
+  mentor_id: string
+  mentor_name: string
+  student_message: string | null
+  requested_at: string
+  claim_status: 'ghost' | 'claimed' | null
+  claim_email_sent_at: string | null
+}
 
 interface MatchRowProps {
   student: {
@@ -35,6 +47,7 @@ interface MatchRowProps {
     careers: string[]
     availability_slots: string[]
     created_at: string
+    pending_requests: StudentPendingRequest[]
   }
   mentorOptions: {
     user_id: string
@@ -55,91 +68,76 @@ function intersectionSize(a: string[], b: string[]): number {
   return n
 }
 
+function defaultMentorSelection(
+  matchedMentorId: string | null,
+  pendingRequests: StudentPendingRequest[],
+  mentorOptions: MatchRowProps['mentorOptions']
+): string {
+  if (matchedMentorId) return matchedMentorId
+
+  const optionIds = new Set(mentorOptions.map((m) => m.user_id))
+  const claimedRequest = pendingRequests.find(
+    (r) => r.claim_status === 'claimed' && optionIds.has(r.mentor_id)
+  )
+  if (claimedRequest) return claimedRequest.mentor_id
+
+  const firstInOptions = pendingRequests.find((r) => optionIds.has(r.mentor_id))
+  if (firstInOptions) return firstInOptions.mentor_id
+
+  return ''
+}
+
 export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
   const router = useRouter()
-  const [expanded, setExpanded] = useState(!student.matched_mentor_id)
-  const [selectedMentorId, setSelectedMentorId] = useState(
-    student.matched_mentor_id ?? ''
+  const [pending, startTransition] = useTransition()
+  const [expanded, setExpanded] = useState(
+    !student.matched_mentor_id || student.pending_requests.length > 0
   )
-  const [saving, setSaving] = useState(false)
+  const [selectedMentorId, setSelectedMentorId] = useState(() =>
+    defaultMentorSelection(
+      student.matched_mentor_id,
+      student.pending_requests,
+      mentorOptions
+    )
+  )
   const [error, setError] = useState('')
 
   const isMatched = !!student.matched_mentor_id
   const dirty = selectedMentorId !== (student.matched_mentor_id ?? '')
 
-  // Sort mentors by slot overlap descending; mentors with no overlap go last.
   const sortedMentors = useMemo(() => {
+    const requestedIds = new Set(student.pending_requests.map((r) => r.mentor_id))
     return [...mentorOptions]
       .map((m) => ({
         ...m,
         overlap: intersectionSize(m.availability_slots, student.availability_slots),
         atCapacity: m.active_mentees_count >= m.max_mentees,
+        requested: requestedIds.has(m.user_id),
       }))
       .sort((a, b) => {
+        if (a.requested !== b.requested) return a.requested ? -1 : 1
         if (a.atCapacity !== b.atCapacity) return a.atCapacity ? 1 : -1
         return b.overlap - a.overlap
       })
-  }, [mentorOptions, student.availability_slots])
+  }, [mentorOptions, student.availability_slots, student.pending_requests])
 
   const selectedMentor = sortedMentors.find(
     (m) => m.user_id === selectedMentorId
   )
 
-  const handleAssign = async () => {
-    setSaving(true)
+  const runAssign = (mentorId: string | null) => {
     setError('')
-
-    const supabase = createClient()
-    const { data, error: updateError } = await supabase
-      .from('student_profiles')
-      .update({ matched_mentor_id: selectedMentorId || null })
-      .eq('user_id', student.user_id)
-      .select('user_id, matched_mentor_id')
-
-    if (updateError) {
-      setError(updateError.message)
-      setSaving(false)
-      return
-    }
-    if (!data || data.length === 0) {
-      setError(
-        'No row was updated. This usually means RLS blocked the write. Check that the admin policy on student_profiles allows UPDATE.'
-      )
-      setSaving(false)
-      return
-    }
-
-    setSaving(false)
-    router.refresh()
-  }
-
-  const handleUnassign = async () => {
-    setSelectedMentorId('')
-    setSaving(true)
-    setError('')
-
-    const supabase = createClient()
-    const { data, error: updateError } = await supabase
-      .from('student_profiles')
-      .update({ matched_mentor_id: null })
-      .eq('user_id', student.user_id)
-      .select('user_id, matched_mentor_id')
-
-    if (updateError) {
-      setError(updateError.message)
-      setSaving(false)
-      return
-    }
-    if (!data || data.length === 0) {
-      setError(
-        'No row was updated. This usually means RLS blocked the write.'
-      )
-      setSaving(false)
-      return
-    }
-
-    setSaving(false)
-    router.refresh()
+    startTransition(async () => {
+      const result = await assignStudentMentor({
+        studentId: student.user_id,
+        mentorId,
+      })
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      router.refresh()
+    })
   }
 
   return (
@@ -167,6 +165,12 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
             )}
           </div>
           <p className="mt-0.5 text-[12px] text-text-3">{student.email}</p>
+          {student.pending_requests.length > 0 && !isMatched && (
+            <p className="mt-1 text-[12px] text-primary">
+              {student.pending_requests.length} mentor request
+              {student.pending_requests.length === 1 ? '' : 's'}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isMatched ? (
@@ -186,6 +190,48 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
 
       {expanded && (
         <CardContent className="space-y-5 border-t border-border bg-surface-2 p-5">
+          {student.pending_requests.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[12px] font-medium text-text-2">
+                Student requested
+              </p>
+              <ul className="space-y-2">
+                {student.pending_requests.map((req) => (
+                  <li
+                    key={req.id}
+                    className="rounded-[var(--radius-sm)] border border-line bg-surface px-3 py-2.5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[13px] font-medium text-text">
+                        {req.mentor_name}
+                      </span>
+                      {req.claim_status === 'ghost' && (
+                        <Badge variant="secondary">
+                          <Sparkles className="mr-1 h-3 w-3" />
+                          Ghost
+                        </Badge>
+                      )}
+                      <span className="text-[11px] text-text-3">
+                        {timeAgo(req.requested_at)}
+                      </span>
+                    </div>
+                    {req.claim_status === 'ghost' && req.claim_email_sent_at && (
+                      <p className="mt-1 flex items-center gap-1 text-[11px] text-text-3">
+                        <MailCheck className="h-3 w-3" />
+                        Claim email sent {timeAgo(req.claim_email_sent_at)}
+                      </p>
+                    )}
+                    {req.student_message && (
+                      <p className="mt-1.5 text-[12px] text-text-2">
+                        &ldquo;{req.student_message}&rdquo;
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-3">
             <TagSection label="Interests" items={student.interests} />
             <TagSection label="Careers" items={student.careers} />
@@ -211,6 +257,7 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
                 <SelectOption value="">Select a mentor...</SelectOption>
                 {sortedMentors.map((m) => (
                   <SelectOption key={m.user_id} value={m.user_id}>
+                    {m.requested ? '★ ' : ''}
                     {m.full_name} {' \u00b7 '} {m.university} {' \u00b7 '}{' '}
                     {m.overlap} overlap {m.atCapacity ? '(full)' : ''}
                   </SelectOption>
@@ -218,10 +265,10 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
               </Select>
               <Button
                 size="sm"
-                onClick={handleAssign}
-                disabled={!dirty || saving || !selectedMentorId}
+                onClick={() => runAssign(selectedMentorId || null)}
+                disabled={!dirty || pending || !selectedMentorId}
               >
-                {saving ? (
+                {pending ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     Saving
@@ -236,8 +283,11 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={handleUnassign}
-                  disabled={saving}
+                  onClick={() => {
+                    setSelectedMentorId('')
+                    runAssign(null)
+                  }}
+                  disabled={pending}
                 >
                   <X className="h-3.5 w-3.5" />
                   Unassign
@@ -298,4 +348,15 @@ function TagSection({ label, items }: { label: string; items: string[] }) {
       )}
     </div>
   )
+}
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
 }

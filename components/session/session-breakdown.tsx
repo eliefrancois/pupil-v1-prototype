@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { RatingCard } from '@/components/session/rating-card'
+import { computeRatingWindow } from '@/lib/scheduling/rating-window'
 import type { SessionForReview } from '@/lib/supabase/queries'
 
 interface SessionBreakdownProps {
@@ -160,10 +161,17 @@ export function SessionBreakdown({
 
           <div className="space-y-6 lg:col-span-2">
             {viewerRole === 'student' ? (
-              <RatingCard
-                bookingId={booking.id}
-                initialScore={existingRating}
-              />
+              (() => {
+                const window = computeRatingWindow(booking)
+                return (
+                  <RatingCard
+                    bookingId={booking.id}
+                    initialScore={existingRating}
+                    windowOpen={window.isOpen}
+                    windowClosesAt={window.closesAt.toISOString()}
+                  />
+                )
+              })()
             ) : null}
 
             <Card>

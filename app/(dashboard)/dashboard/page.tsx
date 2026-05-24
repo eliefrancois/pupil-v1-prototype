@@ -8,7 +8,9 @@ import {
   Lock,
   MessageCircle,
   Search,
+  Star,
 } from 'lucide-react'
+
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,18 +18,16 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import Stars from '@/components/stars'
 import UpgradeBanner from '@/components/upgrade-banner'
+import StudentRequestsPanel from '@/components/student-requests-panel'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import {
   getStudentProfile,
   getMatchedMentor,
   getStudentSessionUsage,
+  getUnratedSessionsForStudent,
 } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/server'
-import { normalizeOptIns } from '@/lib/scheduling/slots'
-import {
-  MIN_QUEUE_SLOTS,
-  isMatchQueueEligible,
-} from '@/lib/scheduling/canonical-slots'
+import { computeRatingWindow } from '@/lib/scheduling/rating-window'
 import type { PublicMentor } from '@/lib/types/mentor'
 
 export default async function DashboardPage() {
@@ -40,25 +40,20 @@ export default async function DashboardPage() {
   const profile = await getStudentProfile(user.id)
   const matchedMentor = await getMatchedMentor(profile?.matched_mentor_id)
 
-  const supabase = createClient()
-  const { data: slotsRow } = await supabase
-    .from('student_profiles')
-    .select('availability_slots')
-    .eq('user_id', user.id)
-    .maybeSingle<{ availability_slots: unknown }>()
-  const availabilityCount = normalizeOptIns(slotsRow?.availability_slots).size
-
   if (!matchedMentor) {
     return (
       <UnmatchedState
         firstName={firstName}
         isPaid={isPaid}
-        availabilityCount={availabilityCount}
+        studentId={user.id}
       />
     )
   }
 
   const usage = await getStudentSessionUsage(user.id)
+  const unratedSessions = await getUnratedSessionsForStudent(user.id)
+  const pendingRating =
+    unratedSessions.find((s) => computeRatingWindow(s).isOpen) ?? null
 
   return (
     <div className="page-enter">
@@ -80,6 +75,37 @@ export default async function DashboardPage() {
         </div>
 
         {!isPaid && <UpgradeBanner />}
+
+        <StudentRequestsPanel studentId={user.id} />
+
+        {pendingRating && (
+          <Card className="border-warning bg-[rgba(245,158,11,0.06)]">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-warning/10 text-warning">
+                  <Star className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[14px] font-semibold text-text">
+                    Rate your session with{' '}
+                    {pendingRating.mentor_name ?? 'your mentor'}
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-text-2">
+                    Ratings are required and close{' '}
+                    {computeRatingWindow(pendingRating).hoursLeft} hour
+                    {computeRatingWindow(pendingRating).hoursLeft === 1 ? '' : 's'}{' '}
+                    from now.
+                  </p>
+                </div>
+              </div>
+              <Button asChild className="sm:shrink-0">
+                <Link href={`/dashboard/session/${pendingRating.id}/breakdown`}>
+                  Rate session
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-5">
           <Card className="lg:col-span-3">
@@ -283,11 +309,11 @@ function QuickAction({
 async function UnmatchedState({
   firstName,
   isPaid,
-  availabilityCount,
+  studentId,
 }: {
   firstName: string
   isPaid: boolean
-  availabilityCount: number
+  studentId: string
 }) {
   const supabase = createClient()
   const { data } = await supabase
@@ -296,10 +322,6 @@ async function UnmatchedState({
     .order('rating', { ascending: false })
     .limit(3)
   const suggested = (data ?? []) as PublicMentor[]
-
-  const inQueue = isMatchQueueEligible(availabilityCount)
-  const needsMoreSlots = availabilityCount > 0 && !inQueue
-  const slotsNeeded = Math.max(0, MIN_QUEUE_SLOTS - availabilityCount)
 
   return (
     <div className="page-enter">
@@ -317,36 +339,9 @@ async function UnmatchedState({
 
         {!isPaid && <UpgradeBanner />}
 
-        {!inQueue && (
-          <Card className="border-warning bg-[rgba(245,158,11,0.05)]">
-            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-warning/10 text-warning">
-                  <Calendar className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[14px] font-semibold text-text">
-                    {needsMoreSlots
-                      ? `Add ${slotsNeeded} more slot${slotsNeeded === 1 ? '' : 's'} to enter the matching queue`
-                      : "You're not in the matching queue yet"}
-                  </p>
-                  <p className="mt-0.5 text-[13px] text-text-2">
-                    {needsMoreSlots
-                      ? `You've picked ${availabilityCount} of ${MIN_QUEUE_SLOTS} required slots. The more times you can meet, the better your match.`
-                      : `Pick at least ${MIN_QUEUE_SLOTS} times you can usually meet so we can match you with a mentor whose schedule overlaps yours.`}
-                  </p>
-                </div>
-              </div>
-              <Button asChild className="sm:shrink-0">
-                <Link href="/dashboard/schedule">
-                  {needsMoreSlots ? 'Add more slots' : 'Set availability'}
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <StudentRequestsPanel studentId={studentId} />
 
-        {isPaid && inQueue && (
+        {isPaid && (
           <Card className="bg-primary-soft border-primary-light">
             <CardContent className="flex flex-col items-center py-12 text-center">
               <div className="relative mb-6 flex h-16 w-16 items-center justify-center">
@@ -354,37 +349,15 @@ async function UnmatchedState({
                 <Search className="relative h-7 w-7 text-primary" />
               </div>
               <h2 className="text-[18px] font-semibold text-text">
-                You&apos;re in the matching queue
+                We&apos;re finding your mentor
               </h2>
               <p className="mt-2 max-w-md text-[14px] text-text-2">
-                Based on your interests, goals, and availability, we&apos;re
-                pairing you with the right mentor. Expected match within 24 to
-                48 hours.
+                Based on your interests and goals, we&apos;re pairing you with
+                the right mentor. Expected match within 24 to 48 hours.
               </p>
-              <div className="mt-6 flex gap-3">
-                <Button variant="outline" asChild>
-                  <Link href="/dashboard/schedule">Edit availability</Link>
-                </Button>
-                <Button variant="secondary" asChild>
-                  <Link href="/mentors">Browse mentors</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {isPaid && !inQueue && (
-          <Card className="bg-surface-2 border-line">
-            <CardContent className="flex flex-col items-center py-10 text-center">
-              <Search className="mb-4 h-7 w-7 text-text-3" />
-              <h2 className="text-[16px] font-semibold text-text">
-                Mentor matching paused
-              </h2>
-              <p className="mt-1 max-w-md text-[13px] text-text-2">
-                You&apos;ll enter the queue as soon as you&apos;ve picked at
-                least {MIN_QUEUE_SLOTS} availability slots. Browse mentors
-                below to see who you might be matched with.
-              </p>
+              <Button variant="secondary" className="mt-6" asChild>
+                <Link href="/mentors">Browse mentors</Link>
+              </Button>
             </CardContent>
           </Card>
         )}

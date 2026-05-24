@@ -28,6 +28,7 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { CollegeRecord, MajorRecord } from '@/lib/data/colleges-majors'
+import { MENTOR_SPECIALTIES } from '@/lib/constants'
 
 const TOTAL_STEPS = 5
 
@@ -40,26 +41,7 @@ const YEARS_IN_SCHOOL = [
   'Recent graduate',
 ] as const
 
-const SPECIALTIES = [
-  'First-gen guidance',
-  'Pre-med advising',
-  'STEM applications',
-  'Liberal arts essays',
-  'Financial aid navigation',
-  'Athletics recruiting',
-  'Arts / portfolio prep',
-  'Test prep strategy',
-  'Major exploration',
-  'Transfer applications',
-  'Gap year planning',
-  'Career exploration',
-  'Networking & internships',
-  'Research opportunities',
-  'Study abroad',
-  'Greek life',
-  'Community college path',
-  'Trade / vocational path',
-]
+const SPECIALTIES = MENTOR_SPECIALTIES
 
 const TIME_WINDOWS = [
   { id: 'weekday_morning', label: 'Weekday mornings', sub: '9am - 12pm' },

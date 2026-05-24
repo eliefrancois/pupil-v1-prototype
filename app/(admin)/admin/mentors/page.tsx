@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
+import { getMentorStatsBatch } from '@/lib/supabase/queries'
 
 import MentorReviewRow from './mentor-row'
 import type { MentorReviewItem } from './types'
@@ -56,12 +57,20 @@ export default async function AdminMentorsPage({
     (usersRes.data ?? []).map((u) => [u.id, u as { id: string; full_name: string; email: string }])
   )
 
+  // Override the stale denormalized stat columns with live counts.
+  const mentorIds = (profilesRes.data ?? []).map((row) => row.user_id)
+  const liveStats = await getMentorStatsBatch(supabase, mentorIds)
+
   const allMentors: MentorReviewItem[] = (profilesRes.data ?? []).map((row) => {
     const u = userById.get(row.user_id)
+    const stats = liveStats.get(row.user_id)
     return {
       ...row,
       full_name: u?.full_name ?? '',
       email: u?.email ?? '',
+      active_mentees_count: stats?.activeMentees ?? 0,
+      sessions_count: stats?.sessionsCount ?? 0,
+      rating: stats && stats.sessionsCount > 0 ? stats.rating : null,
     } as MentorReviewItem
   })
 

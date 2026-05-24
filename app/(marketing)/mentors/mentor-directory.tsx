@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Search, Star, Users } from 'lucide-react'
+import { Search, Sparkles, Star, Users } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { MENTOR_SPECIALTIES, MENTOR_SPECIALTIES_SET } from '@/lib/constants'
 import type { PublicMentor } from '@/lib/types/mentor'
 
 interface MentorDirectoryProps {
@@ -18,10 +19,17 @@ export default function MentorDirectory({ mentors }: MentorDirectoryProps) {
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
 
+  // Show only specialties that (a) appear on at least one mentor AND
+  // (b) are in the canonical taxonomy. Order matches MENTOR_SPECIALTIES
+  // so the chip row is stable and matches what mentors see in onboarding.
   const allTags = useMemo(() => {
-    const set = new Set<string>()
-    mentors.forEach((m) => m.tags?.forEach((t) => set.add(t)))
-    return Array.from(set).sort()
+    const present = new Set<string>()
+    mentors.forEach((m) =>
+      m.tags?.forEach((t) => {
+        if (MENTOR_SPECIALTIES_SET.has(t)) present.add(t)
+      })
+    )
+    return MENTOR_SPECIALTIES.filter((s) => present.has(s))
   }, [mentors])
 
   const filtered = useMemo(() => {
@@ -132,9 +140,20 @@ export default function MentorDirectory({ mentors }: MentorDirectoryProps) {
                           className="h-44 w-full rounded-[var(--radius-sm)] object-cover"
                         />
                       )}
-                      <h3 className="mt-4 text-[15px] font-semibold text-text">
-                        {mentor.display_name}
-                      </h3>
+                      <div className="mt-4 flex items-start justify-between gap-2">
+                        <h3 className="text-[15px] font-semibold text-text">
+                          {mentor.display_name}
+                        </h3>
+                        {mentor.is_ghost && (
+                          <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-bg-2 px-2 py-0.5 text-[10px] font-medium text-text-2 border border-border"
+                            title="Onboarding in progress. Request a match and we'll reach out to this mentor."
+                          >
+                            <Sparkles className="h-2.5 w-2.5" />
+                            New
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[13px] text-text-2">
                         {mentor.university}
                       </p>
@@ -144,27 +163,36 @@ export default function MentorDirectory({ mentors }: MentorDirectoryProps) {
                           {mentor.grad_year && ` · Class of '${String(mentor.grad_year).slice(2)}`}
                         </p>
                       )}
-                      <div className="mt-3 flex items-center gap-2 text-[13px]">
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5 fill-warning text-warning" />
-                          <span className="font-medium text-text">
-                            {Number(mentor.rating).toFixed(1)}
+                      {!mentor.is_ghost && (
+                        <div className="mt-3 flex items-center gap-2 text-[13px]">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+                            <span className="font-medium text-text">
+                              {Number(mentor.rating).toFixed(1)}
+                            </span>
+                          </div>
+                          <span className="text-text-3">|</span>
+                          <span className="text-text-2">
+                            {mentor.sessions_count} sessions
                           </span>
                         </div>
-                        <span className="text-text-3">|</span>
-                        <span className="text-text-2">
-                          {mentor.sessions_count} sessions
-                        </span>
-                      </div>
-                      {mentor.tags?.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1">
-                          {mentor.tags.slice(0, 3).map((tag) => (
-                            <Badge key={tag} variant="purple">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
                       )}
+                      {(() => {
+                        const cleanTags =
+                          mentor.tags?.filter((t) =>
+                            MENTOR_SPECIALTIES_SET.has(t)
+                          ) ?? []
+                        if (cleanTags.length === 0) return null
+                        return (
+                          <div className="mt-3 flex flex-wrap gap-1">
+                            {cleanTags.slice(0, 3).map((tag) => (
+                              <Badge key={tag} variant="purple">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )
+                      })()}
                     </CardContent>
                   </Card>
                 </Link>

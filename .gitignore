@@ -52,3 +52,4 @@ Thumbs.db
 # Local scratch
 uploads/
 *.local
+scripts/data/

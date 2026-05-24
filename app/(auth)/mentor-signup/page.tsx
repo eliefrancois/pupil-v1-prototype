@@ -38,6 +38,11 @@ export default function MentorSignupPage() {
     e.preventDefault()
     setError('')
 
+    if (!email.endsWith('.edu')) {
+      setError('A .edu email address is required for mentor accounts.')
+      return
+    }
+
     if (password.length < 6) {
       setError('Password must be at least 6 characters.')
       return
@@ -169,7 +174,7 @@ export default function MentorSignupPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@university.edu"
+                  placeholder="you@school.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
@@ -177,8 +182,7 @@ export default function MentorSignupPage() {
                 />
               </div>
               <p className="text-[12px] text-text-3">
-                Use your university email if you have one. Personal emails are
-                fine too.
+                A .edu email is required to verify your university enrollment.
               </p>
             </div>
 

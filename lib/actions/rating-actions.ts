@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
+import { computeRatingWindow } from '@/lib/scheduling/rating-window'
 
 export type SubmitRatingResult =
   | { ok: true }
@@ -11,10 +12,13 @@ export type SubmitRatingResult =
 /**
  * Student-side rating of a completed session.
  *
- * Writes/updates the `ratings` row keyed by `(session_id, from_user_id)`.
- * Idempotent on re-submit so the student can change their mind. Mentor-side
- * rating-of-student is intentionally not wired for V0; the table is already
- * bidirectional (`to_user_id`) so we can add it later without a migration.
+ * Permanent on first submit: once a `ratings` row exists for
+ * `(session_id, from_user_id)`, we reject further updates. Students have
+ * a 24h window after the session ends to submit; after that, the window
+ * closes and no new ratings are accepted.
+ *
+ * Mentor-side rating-of-student is intentionally not wired for V0; the
+ * table is bidirectional (`to_user_id`) so we can add it later.
  */
 export async function submitRating(input: {
   bookingId: string
@@ -32,13 +36,16 @@ export async function submitRating(input: {
 
   const { data: booking } = await supabase
     .from('session_bookings')
-    .select('id, mentor_id, student_id, status')
+    .select('id, mentor_id, student_id, status, starts_at, duration, ended_at')
     .eq('id', input.bookingId)
     .maybeSingle<{
       id: string
       mentor_id: string
       student_id: string
       status: string
+      starts_at: string
+      duration: number | null
+      ended_at: string | null
     }>()
 
   if (!booking) return { ok: false, error: 'Session not found.' }
@@ -52,9 +59,16 @@ export async function submitRating(input: {
     }
   }
 
-  // Upsert by (session_id, from_user_id). The ratings table doesn't have a
-  // unique constraint on those today, so we do a manual lookup-then-update
-  // to stay idempotent.
+  const window = computeRatingWindow(booking)
+  if (!window.isOpen) {
+    return {
+      ok: false,
+      error: 'The rating window for this session has closed.',
+    }
+  }
+
+  // Ratings are locked once submitted. If a row already exists for this
+  // (session, rater), reject the change.
   const { data: existing } = await supabase
     .from('ratings')
     .select('id')
@@ -63,23 +77,23 @@ export async function submitRating(input: {
     .maybeSingle<{ id: string }>()
 
   if (existing) {
-    const { error } = await supabase
-      .from('ratings')
-      .update({ score: input.score })
-      .eq('id', existing.id)
-    if (error) return { ok: false, error: error.message }
-  } else {
-    const { error } = await supabase.from('ratings').insert({
-      session_id: booking.id,
-      from_user_id: user.id,
-      to_user_id: booking.mentor_id,
-      score: input.score,
-    })
-    if (error) return { ok: false, error: error.message }
+    return {
+      ok: false,
+      error: 'You have already rated this session. Ratings can\u2019t be changed.',
+    }
   }
+
+  const { error } = await supabase.from('ratings').insert({
+    session_id: booking.id,
+    from_user_id: user.id,
+    to_user_id: booking.mentor_id,
+    score: input.score,
+  })
+  if (error) return { ok: false, error: error.message }
 
   revalidatePath(`/dashboard/session/${booking.id}/breakdown`)
   revalidatePath(`/mentor/session/${booking.id}/breakdown`)
+  revalidatePath('/dashboard')
 
   return { ok: true }
 }

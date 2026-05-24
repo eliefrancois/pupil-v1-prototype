@@ -24,10 +24,12 @@ import {
 } from '@/components/ui/dialog'
 import { CANCEL_REFUND_HOURS } from '@/lib/scheduling/canonical-slots'
 import { computeJoinWindow } from '@/lib/scheduling/join-window'
+import { computeRatingWindow } from '@/lib/scheduling/rating-window'
 import { formatSlot, formatSlotTimeOnly } from '@/lib/scheduling/slots'
 import { cancelBooking } from '@/lib/actions/booking-actions'
 import { joinSession } from '@/lib/actions/call-actions'
 import CallRoom from '@/components/scheduling/call-room'
+import { RatingCard } from '@/components/session/rating-card'
 import type { BookingDetail } from '@/lib/supabase/queries'
 
 interface SessionDetailProps {
@@ -93,8 +95,12 @@ export default function SessionDetail({ booking, backHref }: SessionDetailProps)
     })()
   }
 
+  const [callEnded, setCallEnded] = useState(false)
+  const [rated, setRated] = useState(false)
+
   function handleLeave() {
     setCallContext(null)
+    setCallEnded(true)
     router.refresh()
   }
 
@@ -120,13 +126,18 @@ export default function SessionDetail({ booking, backHref }: SessionDetailProps)
     // up (showFullscreenButton: true) for users who want true fullscreen.
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-bg p-4 md:p-6">
-        <div className="mb-3 flex-shrink-0">
-          <h1 className="display text-[20px] leading-tight md:text-[24px]">
-            In session with {counterpartLabel}
-          </h1>
-          <p className="text-[12px] text-text-2 md:text-[13px]">
-            This call is being recorded and transcribed for safety.
-          </p>
+        <div className="mb-3 flex flex-shrink-0 items-start justify-between gap-3">
+          <div>
+            <h1 className="display text-[20px] leading-tight md:text-[24px]">
+              In session with {counterpartLabel}
+            </h1>
+            <p className="text-[12px] text-text-2 md:text-[13px]">
+              This call is being recorded and transcribed for safety.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleLeave}>
+            Leave session
+          </Button>
         </div>
         <div className="min-h-0 flex-1">
           <CallRoom
@@ -137,6 +148,82 @@ export default function SessionDetail({ booking, backHref }: SessionDetailProps)
           />
         </div>
       </div>
+    )
+  }
+
+  if (callEnded) {
+    const canRejoin = joinWindow.isOpen && booking.status !== 'cancelled'
+    const ratingWindow = computeRatingWindow(booking)
+    const showRating = booking.viewerRole === 'student' && ratingWindow.isOpen
+    const ratingRequired = showRating && !rated
+    const heading = canRejoin
+      ? 'You left the session'
+      : ratingRequired
+        ? 'How was your session?'
+        : 'Session ended'
+
+    return (
+      <>
+        <Card>
+          <CardContent className="flex flex-col items-center space-y-4 p-8 text-center">
+            <CheckCircle2 className="h-10 w-10 text-success" />
+            <div className="space-y-1">
+              <h2 className="display text-[22px]">{heading}</h2>
+              <p className="text-[13px] text-text-2">
+                {canRejoin
+                  ? 'Left by accident? You can rejoin while the session is still open.'
+                  : ratingRequired
+                    ? 'Rate this session before heading back. Ratings are required and final.'
+                    : 'Nice work. Your post-call breakdown will be ready shortly.'}
+              </p>
+            </div>
+
+            {canRejoin && (
+              <Button
+                onClick={() => {
+                  setCallEnded(false)
+                  handleJoin()
+                }}
+                disabled={joinPending}
+              >
+                <Video className="h-4 w-4" />
+                {joinPending ? 'Reconnecting...' : 'Rejoin session'}
+              </Button>
+            )}
+
+            {joinError && (
+              <p className="text-[13px] text-danger">{joinError}</p>
+            )}
+
+            {showRating && (
+              <div className="w-full max-w-sm pt-2">
+                <RatingCard
+                  bookingId={booking.id}
+                  initialScore={rated ? 5 : null}
+                  windowOpen={ratingWindow.isOpen}
+                  windowClosesAt={ratingWindow.closesAt.toISOString()}
+                  onSubmitted={() => setRated(true)}
+                />
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              asChild={!ratingRequired}
+              disabled={ratingRequired}
+              title={
+                ratingRequired ? 'Submit a rating to continue' : undefined
+              }
+            >
+              {ratingRequired ? (
+                <span>Back to dashboard</span>
+              ) : (
+                <Link href={backHref}>Back to dashboard</Link>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </>
     )
   }
 

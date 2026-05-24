@@ -9,12 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, ArrowRight, CheckCircle, Loader as Loader2 } from 'lucide-react'
 
-import CanonicalSlotGrid from '@/components/scheduling/canonical-slot-grid'
-import { serializeOptIns } from '@/lib/scheduling/slots'
-import {
-  MIN_QUEUE_SLOTS,
-  isMatchQueueEligible,
-} from '@/lib/scheduling/canonical-slots'
 
 const INTERESTS = [
   'Computer Science', 'Biology', 'Engineering', 'Business', 'Psychology',
@@ -99,7 +93,7 @@ export default function OnboardingPage() {
   const [ethnicity, setEthnicity] = useState('')
   const [firstGen, setFirstGen] = useState('')
 
-  const [availability, setAvailability] = useState<Set<string>>(new Set())
+  const [bio, setBio] = useState('')
 
   const toggleIn = (arr: string[], set: (v: string[]) => void, val: string) => {
     set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
@@ -124,8 +118,8 @@ export default function OnboardingPage() {
       interests,
       colleges,
       careers,
+      bio: bio.trim() || null,
       identity_json: { ethnicity, first_gen: firstGen === 'yes' },
-      availability_slots: serializeOptIns(Array.from(availability)),
     })
 
     await supabase.from('users').update({ onboarding_complete: true }).eq('id', user.id)
@@ -264,24 +258,23 @@ export default function OnboardingPage() {
 
         {step === 5 && (
           <div>
-            <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">Availability</p>
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">When can you usually meet?</h1>
+            <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">About you</p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900">Introduce yourself to mentors.</h1>
             <p className="mt-2 text-gray-500">
-              Pick at least {MIN_QUEUE_SLOTS} times that usually work. We use this to match you with a mentor whose schedule lines up, and these are the times you&apos;ll be able to book once you&apos;re paired. You can change this anytime.
+              Short intro mentors will see when you request to be matched with them. A couple of sentences works. You can edit this later.
             </p>
-            <div className="mt-6 rounded-md border border-gray-200 bg-white p-4">
-              <CanonicalSlotGrid value={availability} onChange={setAvailability} />
+            <div className="mt-6 space-y-2">
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value.slice(0, 250))}
+                rows={5}
+                placeholder="I'm a junior at Lincoln High thinking about pre-med, but I'm not sure if a small liberal arts school or a big research university is the right fit. Want to figure out how to make my application stand out."
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#7A60E4] focus:outline-none"
+              />
+              <p className="text-xs text-gray-400">
+                {bio.length} / 250 characters. Optional, but mentors are more likely to accept requests with context.
+              </p>
             </div>
-            <p className="mt-3 text-xs text-gray-500">
-              {availability.size} slot{availability.size === 1 ? '' : 's'} selected.{' '}
-              {isMatchQueueEligible(availability.size) ? (
-                <span className="text-green-600">You&apos;ll enter the matching queue when you finish.</span>
-              ) : (
-                <span className="text-amber-600">
-                  {Math.max(0, MIN_QUEUE_SLOTS - availability.size)} more to enter the matching queue. You can skip and add slots later.
-                </span>
-              )}
-            </p>
           </div>
         )}
 

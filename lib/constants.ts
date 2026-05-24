@@ -12,12 +12,45 @@ export interface FaqItem {
   a: string
 }
 
+// ---------- Mentor specialties ----------
+// Canonical list of advisory topics. The single source of truth for:
+//   - what mentors can pick during onboarding
+//   - what students can filter the directory by
+//   - what ghost-mentor data gets normalized to during import
+// Keep this list in sync with the onboarding UI copy.
+
+export const MENTOR_SPECIALTIES = [
+  'First-gen guidance',
+  'Pre-med advising',
+  'STEM applications',
+  'Liberal arts essays',
+  'Financial aid navigation',
+  'Athletics recruiting',
+  'Arts / portfolio prep',
+  'Test prep strategy',
+  'Major exploration',
+  'Transfer applications',
+  'Gap year planning',
+  'Career exploration',
+  'Networking & internships',
+  'Research opportunities',
+  'Study abroad',
+  'Greek life',
+  'Community college path',
+  'Trade / vocational path',
+] as const
+
+export type MentorSpecialty = (typeof MENTOR_SPECIALTIES)[number]
+
+export const MENTOR_SPECIALTIES_SET: ReadonlySet<string> = new Set(
+  MENTOR_SPECIALTIES
+)
+
 // ---------- Navigation ----------
 
 export const NAV_STUDENT: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "Home" },
   { id: "mentor", label: "My Mentor", href: "/dashboard/mentor", icon: "User" },
-  { id: "schedule", label: "Availability", href: "/dashboard/schedule", icon: "Calendar" },
   { id: "book", label: "Book Session", href: "/dashboard/book", icon: "BookOpen" },
   { id: "messages", label: "Messages", href: "/dashboard/messages", icon: "MessageCircle" },
   { id: "history", label: "Session History", href: "/dashboard/history", icon: "List" },
@@ -35,6 +68,7 @@ export const NAV_MENTOR: NavItem[] = [
 
 export const NAV_ADMIN: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/admin", icon: "Home" },
+  { id: "requests", label: "Match Requests", href: "/admin/requests", icon: "Inbox" },
   { id: "matching", label: "Matching Queue", href: "/admin/matching", icon: "Users" },
   { id: "mentors", label: "Mentors", href: "/admin/mentors", icon: "GraduationCap" },
   { id: "students", label: "Students", href: "/admin/students", icon: "BookOpen" },

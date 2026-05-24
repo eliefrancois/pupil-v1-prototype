@@ -1,15 +1,18 @@
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowLeft, GraduationCap, Lock, Star } from 'lucide-react'
+import { ArrowLeft, GraduationCap, Sparkles, Star } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/server'
 import type { PublicMentor } from '@/lib/types/mentor'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { MENTOR_SPECIALTIES_SET } from '@/lib/constants'
 
-export const revalidate = 60
+import RequestMatchButton from './request-match-button'
+
+// Auth-aware state is per-request, so don't cache the rendered page.
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({
   params,
@@ -33,17 +36,56 @@ export async function generateMetadata({
   }
 }
 
+type ViewerState =
+  | { kind: 'guest' }
+  | { kind: 'student'; alreadyRequested: boolean }
+  | { kind: 'mentor' }
+  | { kind: 'admin' }
+
+async function loadViewerState(
+  supabase: ReturnType<typeof createClient>,
+  mentorId: string
+): Promise<ViewerState> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { kind: 'guest' }
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle<{ role: string }>()
+
+  if (!profile) return { kind: 'guest' }
+  if (profile.role === 'mentor') return { kind: 'mentor' }
+  if (profile.role === 'admin') return { kind: 'admin' }
+
+  const { data: existingRequest } = await supabase
+    .from('match_requests')
+    .select('id')
+    .eq('student_id', user.id)
+    .eq('mentor_id', mentorId)
+    .in('status', ['pending', 'forwarded', 'accepted'])
+    .maybeSingle<{ id: string }>()
+
+  return { kind: 'student', alreadyRequested: !!existingRequest }
+}
+
 export default async function MentorDetailPage({
   params,
 }: {
   params: { id: string }
 }) {
   const supabase = createClient()
-  const { data, error } = await supabase
-    .from('public_mentor_profiles')
-    .select('*')
-    .eq('id', params.id)
-    .single<PublicMentor>()
+  const [{ data, error }, viewer] = await Promise.all([
+    supabase
+      .from('public_mentor_profiles')
+      .select('*')
+      .eq('id', params.id)
+      .single<PublicMentor>(),
+    loadViewerState(supabase, params.id),
+  ])
 
   if (error || !data) {
     notFound()
@@ -124,14 +166,28 @@ export default async function MentorDetailPage({
                   </span>
                 </div>
 
-                {mentor.tags?.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {mentor.tags.map((tag) => (
-                      <Badge key={tag} variant="purple">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
+                {(() => {
+                  const cleanTags =
+                    mentor.tags?.filter((t) =>
+                      MENTOR_SPECIALTIES_SET.has(t)
+                    ) ?? []
+                  if (cleanTags.length === 0) return null
+                  return (
+                    <div className="mt-4 flex flex-wrap gap-1.5">
+                      {cleanTags.map((tag) => (
+                        <Badge key={tag} variant="purple">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )
+                })()}
+
+                {mentor.is_ghost && (
+                  <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-bg-2 px-2.5 py-1 text-[11px] font-medium text-text-2 border border-border">
+                    <Sparkles className="h-3 w-3" />
+                    Onboarding in progress
+                  </p>
                 )}
               </div>
             </div>
@@ -145,37 +201,18 @@ export default async function MentorDetailPage({
               </div>
             )}
 
-            <div className="mt-8 rounded-[var(--radius)] border border-primary-light bg-primary-soft p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-primary text-white">
-                    <Lock className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-semibold text-text">
-                      Want to work with {mentor.display_name.split(' ')[0]}?
-                    </p>
-                    <p className="text-[13px] text-text-2">
-                      Sign up free to get matched with a mentor like this.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 sm:shrink-0">
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href="/login">Log in</Link>
-                  </Button>
-                  <Button size="sm" asChild>
-                    <Link href="/signup">Get started free</Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <RequestMatchButton
+              mentorId={mentor.id}
+              mentorDisplayName={mentor.display_name}
+              mentorIsGhost={mentor.is_ghost}
+              viewer={viewer}
+            />
           </CardContent>
         </Card>
 
         <p className="mt-6 text-center text-[12px] text-text-3">
           Pupil mentor profiles show partial info publicly. Full availability
-          and direct booking unlock after sign in.
+          and direct booking unlock after match.
         </p>
       </div>
     </section>

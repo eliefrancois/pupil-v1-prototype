@@ -16,6 +16,7 @@ import {
   Flag,
   Shield,
   Key,
+  Inbox,
   CircleCheck as CheckCircle,
   PanelLeftClose,
   PanelLeftOpen,
@@ -40,6 +41,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Flag,
   Shield,
   Key,
+  Inbox,
   CheckCircle,
 }
 
@@ -52,9 +54,10 @@ const navByRole: Record<string, NavItem[]> = {
 interface SidebarProps {
   role: 'student' | 'mentor' | 'admin'
   user: CurrentUser | null
+  badges?: Record<string, number>
 }
 
-export default function Sidebar({ role, user }: SidebarProps) {
+export default function Sidebar({ role, user, badges }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const items = navByRole[role] ?? NAV_STUDENT
@@ -98,6 +101,7 @@ export default function Sidebar({ role, user }: SidebarProps) {
             const Icon = iconMap[item.icon]
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + '/')
+            const badgeCount = badges?.[item.id] ?? 0
 
             return (
               <li key={item.id}>
@@ -112,8 +116,24 @@ export default function Sidebar({ role, user }: SidebarProps) {
                       : 'text-text-2 hover:bg-surface-2 hover:text-text'
                   )}
                 >
-                  {Icon && <Icon className="h-[18px] w-[18px] shrink-0" />}
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  <span className="relative shrink-0">
+                    {Icon && <Icon className="h-[18px] w-[18px]" />}
+                    {collapsed && badgeCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                        {badgeCount > 9 ? '9+' : badgeCount}
+                      </span>
+                    )}
+                  </span>
+                  {!collapsed && (
+                    <>
+                      <span className="truncate">{item.label}</span>
+                      {badgeCount > 0 && (
+                        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                          {badgeCount > 99 ? '99+' : badgeCount}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </Link>
               </li>
             )

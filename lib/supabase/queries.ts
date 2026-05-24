@@ -161,12 +161,10 @@ export async function getMatchedMentor(
   if (!mentorUserId) return null
 
   const supabase = createClient()
-  const [profileRes, userRes] = await Promise.all([
+  const [profileRes, userRes, statsRes] = await Promise.all([
     supabase
       .from('mentor_profiles')
-      .select(
-        'user_id, university, major, grad_year, bio, photo_url, tags, rating, sessions_count'
-      )
+      .select('user_id, university, major, grad_year, bio, photo_url, tags')
       .eq('user_id', mentorUserId)
       .single(),
     supabase
@@ -174,11 +172,16 @@ export async function getMatchedMentor(
       .select('full_name')
       .eq('id', mentorUserId)
       .single(),
+    // Live rating + session count. We deliberately ignore the stale
+    // `mentor_profiles.rating` / `sessions_count` columns — nothing
+    // updates them today.
+    getMentorStatsBatch(supabase, [mentorUserId]),
   ])
 
   if (!profileRes.data) return null
 
   const p = profileRes.data
+  const stats = statsRes.get(mentorUserId)
   return {
     user_id: p.user_id,
     full_name: userRes.data?.full_name ?? '',
@@ -188,8 +191,8 @@ export async function getMatchedMentor(
     bio: p.bio,
     photo_url: p.photo_url,
     tags: p.tags ?? [],
-    rating: p.rating,
-    sessions_count: p.sessions_count,
+    rating: stats?.rating ?? 0,
+    sessions_count: stats?.sessionsCount ?? 0,
   }
 }
 
@@ -259,17 +262,18 @@ export async function getStudentSessionUsage(
     getStudentSessions(studentId),
     supabase
       .from('student_profiles')
-      .select('sessions_total, sessions_used')
+      .select('sessions_total')
       .eq('user_id', studentId)
-      .maybeSingle<{
-        sessions_total: number | null
-        sessions_used: number | null
-      }>(),
+      .maybeSingle<{ sessions_total: number | null }>(),
   ])
 
   const now = Date.now()
   const total = profile?.sessions_total ?? DEFAULT_SESSIONS_PER_YEAR
-  const used = profile?.sessions_used ?? 0
+  // Compute used count live from completed bookings. The
+  // `student_profiles.sessions_used` column is denormalized but nothing
+  // maintains it today (we'd need a trigger or a server action on
+  // booking completion). Live count is correct and fast at our scale.
+  const used = sessions.filter((s) => s.status === 'completed').length
 
   const upcoming =
     sessions
@@ -291,6 +295,139 @@ export async function getStudentSessionUsage(
     remaining: Math.max(0, total - used),
     upcoming,
     lastCompleted,
+  }
+}
+
+export type MentorLiveStats = {
+  activeMentees: number
+  sessionsCount: number
+  rating: number
+}
+
+/**
+ * Batched live mentor stats. Use for list views (admin mentors table,
+ * future directory rewrites). For single-mentor lookups, call with a
+ * one-element array.
+ *
+ * Returns 0s for mentors with no ratings / no completed sessions so
+ * callers don't have to deal with missing-map cases.
+ *
+ * Pass an existing Supabase client to avoid spinning up a second one
+ * inside callers that already have one.
+ */
+export async function getMentorStatsBatch(
+  supabase: ReturnType<typeof createClient>,
+  mentorIds: string[],
+): Promise<Map<string, MentorLiveStats>> {
+  const result = new Map<string, MentorLiveStats>()
+  if (mentorIds.length === 0) return result
+
+  const [studentsRes, sessionsRes, ratingsRes] = await Promise.all([
+    supabase
+      .from('student_profiles')
+      .select('matched_mentor_id')
+      .in('matched_mentor_id', mentorIds),
+    supabase
+      .from('session_bookings')
+      .select('mentor_id, status')
+      .in('mentor_id', mentorIds)
+      .eq('status', 'completed'),
+    supabase
+      .from('ratings')
+      .select('to_user_id, score')
+      .in('to_user_id', mentorIds),
+  ])
+
+  const menteesByMentor = new Map<string, number>()
+  for (const row of (studentsRes.data ?? []) as {
+    matched_mentor_id: string
+  }[]) {
+    const id = row.matched_mentor_id
+    menteesByMentor.set(id, (menteesByMentor.get(id) ?? 0) + 1)
+  }
+
+  const sessionsByMentor = new Map<string, number>()
+  for (const row of (sessionsRes.data ?? []) as { mentor_id: string }[]) {
+    sessionsByMentor.set(
+      row.mentor_id,
+      (sessionsByMentor.get(row.mentor_id) ?? 0) + 1,
+    )
+  }
+
+  const scoresByMentor = new Map<string, number[]>()
+  for (const row of (ratingsRes.data ?? []) as {
+    to_user_id: string
+    score: number
+  }[]) {
+    const list = scoresByMentor.get(row.to_user_id) ?? []
+    list.push(row.score)
+    scoresByMentor.set(row.to_user_id, list)
+  }
+
+  for (const id of mentorIds) {
+    const scores = scoresByMentor.get(id) ?? []
+    const rating =
+      scores.length > 0
+        ? scores.reduce((sum, s) => sum + s, 0) / scores.length
+        : 0
+    result.set(id, {
+      activeMentees: menteesByMentor.get(id) ?? 0,
+      sessionsCount: sessionsByMentor.get(id) ?? 0,
+      rating,
+    })
+  }
+
+  return result
+}
+
+export type MentorDashboardStats = {
+  activeMentees: number
+  totalSessions: number
+  avgRating: number | null
+}
+
+/**
+ * Live counts for the mentor dashboard. The `mentor_profiles` table has
+ * denormalized `active_mentees_count`, `sessions_count`, and `rating`
+ * columns, but nothing keeps them in sync today — so the mentor sees 0s
+ * even when they have real mentees and completed sessions.
+ *
+ * Computing on the fly here is fine at our scale (one mentor's dashboard
+ * load = 3 small aggregates). When we add a notifications worker or
+ * Stripe webhooks we can swap in triggers that maintain the cached
+ * columns and use them in the directory / admin views too.
+ */
+export async function getMentorDashboardStats(
+  mentorId: string,
+): Promise<MentorDashboardStats> {
+  const supabase = createClient()
+  const [menteesRes, sessionsRes, ratingsRes] = await Promise.all([
+    supabase
+      .from('student_profiles')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('matched_mentor_id', mentorId),
+    supabase
+      .from('session_bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('mentor_id', mentorId)
+      .eq('status', 'completed'),
+    supabase
+      .from('ratings')
+      .select('score')
+      .eq('to_user_id', mentorId),
+  ])
+
+  const scores =
+    (ratingsRes.data as { score: number }[] | null)?.map((r) => r.score) ?? []
+  const avgRating =
+    scores.length > 0
+      ? scores.reduce((sum, s) => sum + s, 0) / scores.length
+      : null
+
+  return {
+    activeMentees: menteesRes.count ?? 0,
+    totalSessions: sessionsRes.count ?? 0,
+    avgRating,
   }
 }
 
@@ -510,3 +647,65 @@ export async function getMentorUpcomingSessions(
     }
   })
 }
+
+/**
+ * Completed sessions for a student that:
+ *   - haven't been rated yet, and
+ *   - are still within the 24h rating window.
+ *
+ * Used by the dashboard banner ("Rate your last session") to nudge students
+ * into giving mandatory feedback before the window closes.
+ */
+export async function getUnratedSessionsForStudent(
+  studentId: string
+): Promise<
+  Array<{
+    id: string
+    starts_at: string
+    duration: number
+    ended_at: string | null
+    mentor_name: string | null
+  }>
+> {
+  const supabase = createClient()
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: rows } = await supabase
+    .from('session_bookings')
+    .select('id, mentor_id, starts_at, duration, ended_at, status')
+    .eq('student_id', studentId)
+    .eq('status', 'completed')
+    .gte('starts_at', since)
+    .order('starts_at', { ascending: false })
+
+  if (!rows || rows.length === 0) return []
+
+  const bookingIds = rows.map((r) => r.id)
+  const { data: ratings } = await supabase
+    .from('ratings')
+    .select('session_id')
+    .in('session_id', bookingIds)
+    .eq('from_user_id', studentId)
+
+  const ratedIds = new Set((ratings ?? []).map((r) => r.session_id))
+  const unrated = rows.filter((r) => !ratedIds.has(r.id))
+  if (unrated.length === 0) return []
+
+  const mentorIds = Array.from(new Set(unrated.map((r) => r.mentor_id)))
+  const { data: mentors } = await supabase
+    .from('users')
+    .select('id, full_name')
+    .in('id', mentorIds)
+  const mentorById = new Map(
+    (mentors ?? []).map((m) => [m.id, m.full_name as string | null])
+  )
+
+  return unrated.map((r) => ({
+    id: r.id,
+    starts_at: r.starts_at,
+    duration: r.duration ?? 30,
+    ended_at: r.ended_at,
+    mentor_name: mentorById.get(r.mentor_id) ?? null,
+  }))
+}
+

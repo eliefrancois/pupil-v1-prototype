@@ -19,6 +19,7 @@ import StatCard from '@/components/stat-card'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
 import {
+  getMentorDashboardStats,
   getMentorUpcomingSessions,
   type MentorUpcoming,
 } from '@/lib/supabase/queries'
@@ -45,10 +46,18 @@ export default async function MentorDashboardPage() {
     redirect('/mentor-onboarding')
   }
 
-  const upcomingSessions =
+  const [upcomingSessions, stats] = await Promise.all([
     profile.status === 'approved'
-      ? await getMentorUpcomingSessions(user.id, 5)
-      : []
+      ? getMentorUpcomingSessions(user.id, 5)
+      : Promise.resolve([]),
+    profile.status === 'approved'
+      ? getMentorDashboardStats(user.id)
+      : Promise.resolve({
+          activeMentees: 0,
+          totalSessions: 0,
+          avgRating: null as number | null,
+        }),
+  ])
   const slotCount = normalizeOptIns(profile.availability_slots).size
 
   const firstName = user.full_name?.split(' ')[0] || 'there'
@@ -78,8 +87,8 @@ export default async function MentorDashboardPage() {
             Welcome back, <em className="italic font-normal">{firstName}.</em>
           </h1>
           <p className="mt-1 text-text-2">
-            {profile.active_mentees_count > 0
-              ? `You're mentoring ${profile.active_mentees_count} ${profile.active_mentees_count === 1 ? 'student' : 'students'} right now.`
+            {stats.activeMentees > 0
+              ? `You're mentoring ${stats.activeMentees} ${stats.activeMentees === 1 ? 'student' : 'students'} right now.`
               : "You're approved and ready to be matched. We'll email you when your first mentee is assigned."}
           </p>
         </div>
@@ -87,26 +96,22 @@ export default async function MentorDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Active mentees"
-            value={profile.active_mentees_count}
+            value={stats.activeMentees}
             icon={<Users className="h-5 w-5" />}
           />
           <StatCard
             label="Capacity"
-            value={`${profile.active_mentees_count} / ${profile.max_mentees}`}
+            value={`${stats.activeMentees} / ${profile.max_mentees}`}
             icon={<Users className="h-5 w-5" />}
           />
           <StatCard
             label="Total sessions"
-            value={profile.sessions_count}
+            value={stats.totalSessions}
             icon={<Calendar className="h-5 w-5" />}
           />
           <StatCard
             label="Avg rating"
-            value={
-              profile.sessions_count > 0
-                ? Number(profile.rating).toFixed(1)
-                : '\u2014'
-            }
+            value={stats.avgRating !== null ? stats.avgRating.toFixed(1) : '\u2014'}
             icon={<Star className="h-5 w-5" />}
           />
         </div>

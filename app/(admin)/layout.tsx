@@ -17,8 +17,7 @@ export default async function AdminLayout({
       supabase
         .from('messages')
         .select('id', { count: 'exact', head: true })
-        .eq('is_flagged', true)
-        .gte('flag_tier', 2),
+        .eq('is_flagged', true),
       supabase
         .from('match_requests')
         .select('id', { count: 'exact', head: true })

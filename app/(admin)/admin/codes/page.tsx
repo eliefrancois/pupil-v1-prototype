@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Plus } from "lucide-react"
 import { ACCESS_CODES } from "@/lib/mock-data"
 import type { AccessCode } from "@/lib/mock-data"
+import AdminDevNotice from "@/components/admin-dev-notice"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -73,6 +74,8 @@ export default function CodesPage() {
             Generate and manage bulk access codes for schools and partners
           </p>
         </div>
+
+        <AdminDevNotice feature="Access codes" />
 
         {/* Generate section */}
         <Card className="mb-8">

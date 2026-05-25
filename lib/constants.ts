@@ -74,7 +74,7 @@ export const NAV_ADMIN: NavItem[] = [
   { id: "matching", label: "Matching Queue", href: "/admin/matching", icon: "Users" },
   { id: "mentors", label: "Mentors", href: "/admin/mentors", icon: "GraduationCap" },
   { id: "students", label: "Students", href: "/admin/students", icon: "BookOpen" },
-  { id: "flags", label: "Safety Flags", href: "/admin/flags", icon: "Flag" },
+  { id: "flags", label: "Trust & Safety", href: "/admin/flags", icon: "Flag" },
   { id: "rules", label: "Safety Rules", href: "/admin/rules", icon: "Shield" },
   { id: "codes", label: "Access Codes", href: "/admin/codes", icon: "Key" },
   { id: "eligibility", label: "Eligibility", href: "/admin/eligibility", icon: "CheckCircle" },

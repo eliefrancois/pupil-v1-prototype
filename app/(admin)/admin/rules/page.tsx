@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Save } from "lucide-react"
 import { SAFETY_RULES } from "@/lib/mock-data"
 import type { SafetyRule } from "@/lib/mock-data"
+import AdminDevNotice from "@/components/admin-dev-notice"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -45,6 +46,8 @@ export default function RulesPage() {
             Changes take immediate effect across the platform
           </p>
         </div>
+
+        <AdminDevNotice feature="Safety rules" />
 
         <div className="space-y-4">
           {rules.map((rule) => (

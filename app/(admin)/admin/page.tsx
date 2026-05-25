@@ -58,9 +58,9 @@ export default async function AdminDashboardPage() {
       .select('user_id', { count: 'exact', head: true })
       .is('matched_mentor_id', null),
     supabase
-      .from('safety_flags')
+      .from('messages')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'open'),
+      .eq('is_flagged', true),
   ])
 
   const today = new Date().toLocaleDateString('en-US', {
@@ -99,11 +99,11 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/admin/flags',
-      title: 'Safety flags',
+      title: 'Trust & Safety',
       description:
         openFlags && openFlags > 0
-          ? `${openFlags} open flag${openFlags === 1 ? '' : 's'}`
-          : 'No open flags',
+          ? `${openFlags} flagged message${openFlags === 1 ? '' : 's'} to review`
+          : 'No flagged messages',
       icon: Flag,
       badge:
         openFlags && openFlags > 0
@@ -117,7 +117,7 @@ export default async function AdminDashboardPage() {
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="mb-8">
           <h1 className="display text-[28px] leading-tight">
-            Trust &amp; Safety dashboard
+            Pupil Admin Dashboard
           </h1>
           <p className="mt-1 text-[14px] text-text-2">{today}</p>
         </div>
@@ -155,7 +155,7 @@ export default async function AdminDashboardPage() {
             icon={<GraduationCap className="h-5 w-5" />}
           />
           <StatCard
-            label="Open safety flags"
+            label="Trust & Safety"
             value={openFlags ?? 0}
             tone={openFlags && openFlags > 0 ? 'danger' : undefined}
             icon={<Flag className="h-5 w-5" />}

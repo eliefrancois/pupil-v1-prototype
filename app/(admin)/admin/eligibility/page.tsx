@@ -4,6 +4,7 @@ import { useState } from "react"
 import { CircleCheck as CheckCircle, Circle as XCircle, Mail } from "lucide-react"
 import { ELIGIBILITY } from "@/lib/mock-data"
 import type { EligibilityApplication } from "@/lib/mock-data"
+import AdminDevNotice from "@/components/admin-dev-notice"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,8 @@ export default function EligibilityPage() {
             {applications.length} application{applications.length !== 1 ? "s" : ""} pending review
           </p>
         </div>
+
+        <AdminDevNotice feature="Eligibility review" />
 
         {/* Toast */}
         {toast && (

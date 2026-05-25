@@ -27,6 +27,7 @@ import {
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { normalizeLinkedinUrl } from '@/lib/linkedin'
 import type { CollegeRecord, MajorRecord } from '@/lib/data/colleges-majors'
 import { MENTOR_SPECIALTIES } from '@/lib/constants'
 
@@ -141,15 +142,6 @@ export type ExistingProfile = {
   } | null
   status: string | null
   submitted_at: string | null
-}
-
-function normalizeLinkedinUrl(input: string): string | null {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  if (/^linkedin\.com/i.test(trimmed)) return `https://${trimmed}`
-  if (/^www\.linkedin\.com/i.test(trimmed)) return `https://${trimmed.replace(/^www\./i, '')}`
-  return `https://www.linkedin.com/in/${trimmed.replace(/^\/+/, '')}`
 }
 
 interface MentorOnboardingFormProps {

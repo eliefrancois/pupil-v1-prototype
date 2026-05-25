@@ -73,6 +73,7 @@ export const NAV_ADMIN: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/admin", icon: "Home" },
   { id: "matching", label: "Matching Queue", href: "/admin/matching", icon: "Users" },
   { id: "mentors", label: "Mentors", href: "/admin/mentors", icon: "GraduationCap" },
+  { id: "mentorPhotos", label: "Ghost setup", href: "/admin/mentor-photos", icon: "Image" },
   { id: "students", label: "Students", href: "/admin/students", icon: "BookOpen" },
   { id: "flags", label: "Trust & Safety", href: "/admin/flags", icon: "Flag" },
   { id: "rules", label: "Safety Rules", href: "/admin/rules", icon: "Shield" },

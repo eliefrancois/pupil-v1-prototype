@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -156,49 +155,13 @@ export default async function AdminGhostPhotosPage() {
     }
   })
 
-  const inQueue = rows.length
   const totalGhosts = totalGhostsRes.count ?? 0
-  const doneCount = Math.max(0, totalGhosts - inQueue)
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-6 p-8">
-        <div>
-          <h1 className="display text-[28px] leading-tight">Ghost mentor setup</h1>
-          <p className="mt-1 text-[14px] text-text-2">
-            {inQueue} in queue · {doneCount} of {totalGhosts} ghosts complete
-            (photo + LinkedIn)
-          </p>
-          <p className="mt-2 text-[13px] text-text-3">
-            Each ghost needs a real headshot and a LinkedIn profile URL before
-            they leave this queue. Find them on LinkedIn, paste the photo, save
-            the profile link. Wrong photo? Reset{' '}
-            <code className="rounded bg-surface-2 px-1 text-[12px]">photo_url</code>{' '}
-            in Supabase to a DiceBear URL to re-queue.
-          </p>
-        </div>
-
-        {rows.length === 0 ? (
-          <Card className="p-12 text-center">
-            <CardContent className="space-y-3 p-0">
-              <p className="text-[15px] font-semibold text-text">
-                All ghost mentors have photos and LinkedIn
-              </p>
-              <p className="text-[14px] text-text-2">
-                Nothing left in the queue. You can remove this nav item when ops
-                is done.
-              </p>
-              <Link
-                href="/admin/mentors?status=approved"
-                className="text-[14px] font-medium text-primary hover:underline"
-              >
-                View mentors
-              </Link>
-            </CardContent>
-          </Card>
-        ) : (
-          <GhostPhotosClient rows={rows} />
-        )}
+        <h1 className="display text-[28px] leading-tight">Ghost mentor setup</h1>
+        <GhostPhotosClient rows={rows} totalGhosts={totalGhosts} />
       </div>
     </div>
   )

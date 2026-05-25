@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import {
   useCallback,
   useEffect,
@@ -32,6 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   uploadGhostMentorPhoto,
+  updateGhostMentorEmail,
   updateGhostMentorLinkedin,
 } from '@/lib/actions/ghost-photo-actions'
 import {
@@ -283,11 +285,15 @@ function GhostPhotoCard({
 }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [linkedinInput, setLinkedinInput] = useState(mentor.linkedin_url ?? '')
+  const [emailInput, setEmailInput] = useState(mentor.email ?? '')
   const needsPhoto = isPlaceholderMentorPhoto(mentor.photo_url)
   const needsLinkedin = !mentor.linkedin_url?.trim()
   const [showLinkedin, setShowLinkedin] = useState(needsLinkedin)
+  const [showEmail, setShowEmail] = useState(false)
   const [linkedinError, setLinkedinError] = useState('')
-  const [isPending, startTransition] = useTransition()
+  const [emailError, setEmailError] = useState('')
+  const [linkedinPending, startLinkedinTransition] = useTransition()
+  const [emailPending, startEmailTransition] = useTransition()
 
   const initials = (mentor.full_name || mentor.email)
     .split(' ')
@@ -305,16 +311,8 @@ function GhostPhotoCard({
   })
 
   const saveLinkedin = () => {
-    startTransition(async () => {
+    startLinkedinTransition(async () => {
       setLinkedinError('')
-      const result = await updateGhostMentorLinkedin({
-        mentorUserId: mentor.user_id,
-        linkedinInput,
-      })
-      if (!result.ok) {
-        setLinkedinError(result.error)
-        return
-      }
       if (!linkedinInput.trim()) {
         setLinkedinError(
           'LinkedIn URL is required before this mentor leaves the queue.'
@@ -326,9 +324,35 @@ function GhostPhotoCard({
         setLinkedinError('Enter a valid LinkedIn profile URL.')
         return
       }
+      const result = await updateGhostMentorLinkedin({
+        mentorUserId: mentor.user_id,
+        linkedinInput,
+      })
+      if (!result.ok) {
+        setLinkedinError(result.error)
+        return
+      }
       setLinkedinInput(saved)
       setShowLinkedin(false)
       onMentorUpdated(mentor.user_id, { linkedin_url: saved })
+    })
+  }
+
+  const saveEmail = () => {
+    startEmailTransition(async () => {
+      setEmailError('')
+      const result = await updateGhostMentorEmail({
+        mentorUserId: mentor.user_id,
+        emailInput,
+      })
+      if (!result.ok) {
+        setEmailError(result.error)
+        return
+      }
+      const saved = emailInput.trim().toLowerCase()
+      setEmailInput(saved)
+      setShowEmail(false)
+      onMentorUpdated(mentor.user_id, { email: saved })
     })
   }
 
@@ -425,6 +449,15 @@ function GhostPhotoCard({
                   ? 'Add LinkedIn URL'
                   : 'Edit LinkedIn URL'}
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-text-2"
+              onClick={() => setShowEmail((v) => !v)}
+            >
+              {showEmail ? 'Hide email' : 'Update email (optional)'}
+            </Button>
             <a
               href={`/mentors/${mentor.user_id}`}
               target="_blank"
@@ -452,10 +485,10 @@ function GhostPhotoCard({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={isPending || !linkedinInput.trim()}
+                  disabled={linkedinPending || !linkedinInput.trim()}
                   onClick={saveLinkedin}
                 >
-                  {isPending ? (
+                  {linkedinPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     'Save LinkedIn'
@@ -467,8 +500,42 @@ function GhostPhotoCard({
               )}
               <p className="text-[12px] text-text-3">
                 Required. Paste the profile URL after you find them on LinkedIn.
-                This mentor stays in the queue until photo and LinkedIn are both
-                saved.
+              </p>
+            </div>
+          </CardContent>
+        )}
+
+        {showEmail && (
+          <CardContent className="border-t border-border pt-0 pb-5">
+            <div className="space-y-2">
+              <Label htmlFor={`email-${mentor.user_id}`}>Email (optional)</Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id={`email-${mentor.user_id}`}
+                  type="email"
+                  placeholder="mentor@school.edu"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={emailPending || !emailInput.trim()}
+                  onClick={saveEmail}
+                >
+                  {emailPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Save email'
+                  )}
+                </Button>
+              </div>
+              {emailError && (
+                <p className="text-[13px] text-[#B91C1C]">{emailError}</p>
+              )}
+              <p className="text-[12px] text-text-3">
+                Only if the address on file is wrong. Claim invites go to this
+                email.
               </p>
             </div>
           </CardContent>
@@ -489,8 +556,10 @@ function GhostPhotoCard({
 
 export default function GhostPhotosClient({
   rows: initialRows,
+  totalGhosts,
 }: {
   rows: GhostPhotoRow[]
+  totalGhosts: number
 }) {
   const [rows, setRows] = useState(initialRows)
   const [query, setQuery] = useState('')
@@ -498,6 +567,9 @@ export default function GhostPhotosClient({
   useEffect(() => {
     setRows(initialRows)
   }, [initialRows])
+
+  const inQueue = rows.length
+  const doneCount = Math.max(0, totalGhosts - inQueue)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -519,8 +591,47 @@ export default function GhostPhotosClient({
     })
   }, [rows, query])
 
+  if (rows.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-[14px] text-text-2">
+          {doneCount} of {totalGhosts} ghost mentors complete (photo + LinkedIn)
+        </p>
+        <Card className="p-12 text-center">
+          <CardContent className="space-y-3 p-0">
+            <p className="text-[15px] font-semibold text-text">
+              You&apos;re all caught up
+            </p>
+            <p className="text-[14px] text-text-2">
+              Every ghost in the queue has a photo and LinkedIn link. Nice work.
+            </p>
+            <Link
+              href="/admin/mentors?status=approved"
+              className="text-[14px] font-medium text-primary hover:underline"
+            >
+              View mentors
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      <div>
+        <p className="text-[14px] text-text-2">
+          <span className="font-medium text-text">{inQueue}</span> in queue ·{' '}
+          <span className="font-medium text-text">{doneCount}</span> of{' '}
+          {totalGhosts} complete (photo + LinkedIn)
+        </p>
+        <p className="mt-2 text-[13px] text-text-3">
+          For each mentor: open Find on LinkedIn, upload their headshot, then
+          save their profile URL. They leave this list once photo and LinkedIn
+          are both saved. Fix a wrong email with Update email (optional).
+        </p>
+      </div>
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-3" />
         <Input

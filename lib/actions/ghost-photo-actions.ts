@@ -140,17 +140,8 @@ export async function updateGhostMentorLinkedin({
   const auth = await ensureAdmin()
   if (!auth.ok) return auth
 
-  const { data, error } = await auth.supabase
-    .from('mentor_profiles')
-    .select('claim_status')
-    .eq('user_id', mentorUserId)
-    .maybeSingle<{ claim_status: string | null }>()
-
-  if (error) return { ok: false, error: error.message }
-  if (!data) return { ok: false, error: 'Mentor profile not found.' }
-  if (data.claim_status !== 'ghost') {
-    return { ok: false, error: 'Only ghost mentors can be updated here.' }
-  }
+  const ghost = await ensureGhostMentor(auth.supabase, mentorUserId)
+  if (!ghost.ok) return ghost
 
   const linkedin_url = normalizeLinkedinUrl(linkedinInput)
   if (!linkedin_url) {
@@ -169,5 +160,73 @@ export async function updateGhostMentorLinkedin({
 
   revalidatePath('/admin/mentor-photos')
   revalidatePath(`/mentors/${mentorUserId}`)
+  return { ok: true }
+}
+
+async function ensureGhostMentor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mentorUserId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await supabase
+    .from('mentor_profiles')
+    .select('claim_status')
+    .eq('user_id', mentorUserId)
+    .maybeSingle<{ claim_status: string | null }>()
+
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: false, error: 'Mentor profile not found.' }
+  if (data.claim_status !== 'ghost') {
+    return { ok: false, error: 'Only ghost mentors can be updated here.' }
+  }
+  return { ok: true }
+}
+
+export async function updateGhostMentorEmail({
+  mentorUserId,
+  emailInput,
+}: {
+  mentorUserId: string
+  emailInput: string
+}): Promise<Result> {
+  const auth = await ensureAdmin()
+  if (!auth.ok) return auth
+
+  const ghost = await ensureGhostMentor(auth.supabase, mentorUserId)
+  if (!ghost.ok) return ghost
+
+  const email = emailInput.trim().toLowerCase()
+  if (!email) {
+    return { ok: false, error: 'Enter an email address.' }
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: 'Enter a valid email address.' }
+  }
+
+  const { error: userError } = await auth.supabase
+    .from('users')
+    .update({ email })
+    .eq('id', mentorUserId)
+
+  if (userError) {
+    if (userError.code === '23505') {
+      return { ok: false, error: 'That email is already used by another account.' }
+    }
+    return { ok: false, error: userError.message }
+  }
+
+  try {
+    const service = createServiceClient()
+    const { error: authError } = await service.auth.admin.updateUserById(
+      mentorUserId,
+      { email }
+    )
+    if (authError) {
+      console.error('[ghost-photo] auth email sync failed:', authError)
+    }
+  } catch (e) {
+    console.error('[ghost-photo] auth email sync failed:', e)
+  }
+
+  revalidatePath('/admin/mentor-photos')
   return { ok: true }
 }

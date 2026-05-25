@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { createClient } from '@/lib/supabase/client'
+import { updateMentorReviewStatus } from '@/lib/actions/mentor-review-actions'
 
 import type { MentorReviewItem } from './types'
 
@@ -57,21 +57,17 @@ export default function MentorReviewRow({
     setBusy(newStatus)
     setError('')
     try {
-      const supabase = createClient()
-      const { data: authUser } = await supabase.auth.getUser()
-      const { error: updateError } = await supabase
-        .from('mentor_profiles')
-        .update({
-          status: newStatus,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: authUser.user?.id ?? null,
-          review_notes: notes ?? mentor.review_notes,
-        })
-        .eq('user_id', mentor.user_id)
+      const result = await updateMentorReviewStatus({
+        mentorUserId: mentor.user_id,
+        status: newStatus,
+        reviewNotes: notes ?? mentor.review_notes,
+        mentorEmail: mentor.email,
+        mentorName: mentor.full_name,
+        university: mentor.university,
+      })
 
-      if (updateError) {
-        setError(updateError.message)
-        setBusy(null)
+      if (!result.ok) {
+        setError(result.error)
         return
       }
 

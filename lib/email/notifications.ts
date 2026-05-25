@@ -16,6 +16,7 @@ import MatchRequestDeclinedEmail from '@/emails/match-request-declined'
 import MatchRequestAdminEmail from '@/emails/match-request-admin'
 import StudentMatchedEmail from '@/emails/student-matched'
 import MentorAssignedEmail from '@/emails/mentor-assigned'
+import MentorApprovedEmail from '@/emails/mentor-approved'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 const RESEND_KEY = process.env.RESEND_API_KEY
@@ -163,6 +164,26 @@ export async function notifyMentorAssigned(payload: {
     html: await render(node),
     text: await render(node, { plainText: true }),
     tag: 'mentor_assigned',
+  })
+}
+
+/** Sent to mentor when admin approves their application. */
+export async function notifyMentorApproved(payload: {
+  mentorEmail: string
+  mentorName: string
+  university: string | null
+}) {
+  const node = MentorApprovedEmail({
+    mentorName: payload.mentorName,
+    university: payload.university,
+  })
+
+  await deliver({
+    to: payload.mentorEmail,
+    subject: 'Your Pupil mentor application was approved',
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: 'mentor_approved',
   })
 }
 

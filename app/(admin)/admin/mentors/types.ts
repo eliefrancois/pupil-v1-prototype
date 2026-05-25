@@ -28,4 +28,5 @@ export type MentorReviewItem = {
   commitment: string | null
   timezone: string | null
   availability_schedule: { time_windows?: string[] } | null
+  availability_slot_count: number
 }

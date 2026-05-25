@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { updateMentorReviewStatus } from '@/lib/actions/mentor-review-actions'
+import { MIN_MENTOR_MATCH_SLOTS } from '@/lib/matching/mentor-eligibility'
 
 import type { MentorReviewItem } from './types'
 
@@ -100,6 +101,20 @@ export default function MentorReviewRow({
     }
   })()
 
+  const hasAvailability =
+    mentor.availability_slot_count >= MIN_MENTOR_MATCH_SLOTS
+  const availabilityBadge =
+    mentor.status === 'approved' ? (
+      hasAvailability ? (
+        <Badge variant="success">
+          {mentor.availability_slot_count} slot
+          {mentor.availability_slot_count === 1 ? '' : 's'} set
+        </Badge>
+      ) : (
+        <Badge variant="warning">No availability yet</Badge>
+      )
+    ) : null
+
   return (
     <Card>
       <CardContent className="p-5">
@@ -123,6 +138,7 @@ export default function MentorReviewRow({
                 {mentor.full_name || '(no name)'}
               </p>
               {statusBadge}
+              {availabilityBadge}
             </div>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[13px] text-text-2">
               <span>{mentor.email}</span>
@@ -163,6 +179,20 @@ export default function MentorReviewRow({
                 <Users className="h-3.5 w-3.5 text-text-3" />
                 Capacity {mentor.max_mentees}
               </span>
+              {mentor.status === 'approved' && (
+                <span
+                  className={`inline-flex items-center gap-1 ${
+                    hasAvailability ? 'text-text-2' : 'text-warning'
+                  }`}
+                >
+                  <Calendar className="h-3.5 w-3.5 text-text-3" />
+                  {hasAvailability
+                    ? `${mentor.availability_slot_count} weekly slot${
+                        mentor.availability_slot_count === 1 ? '' : 's'
+                      } · assignable`
+                    : 'Needs availability before matching'}
+                </span>
+              )}
             </div>
 
             {mentor.tags && mentor.tags.length > 0 && (

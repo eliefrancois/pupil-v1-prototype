@@ -8,43 +8,9 @@ import {
   formatSlot,
   formatSlotTimeOnly,
   normalizeOptIns,
-  serializeOptIns,
   validateBookingSlot,
 } from '@/lib/scheduling/slots'
 import { sendBookingConfirmation } from '@/lib/email/booking'
-
-export type SaveAvailabilityResult =
-  | { ok: true }
-  | { ok: false; error: string }
-
-export async function saveStudentAvailability(
-  slotIds: string[]
-): Promise<SaveAvailabilityResult> {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'Not authenticated.' }
-
-  const cleaned = serializeOptIns(slotIds)
-  if (cleaned.length === 0) {
-    return {
-      ok: false,
-      error: 'Pick at least one slot you can usually meet.',
-    }
-  }
-
-  const { error } = await supabase
-    .from('student_profiles')
-    .update({ availability_slots: cleaned })
-    .eq('user_id', user.id)
-
-  if (error) return { ok: false, error: error.message }
-
-  revalidatePath('/dashboard/book')
-  revalidatePath('/dashboard')
-  return { ok: true }
-}
 
 export type BookSessionResult =
   | { ok: true; bookingId: string }
@@ -71,13 +37,10 @@ export async function bookSession(input: {
   // Pull the student profile (matched mentor + opt-ins + credit usage).
   const { data: studentProfile } = await supabase
     .from('student_profiles')
-    .select(
-      'matched_mentor_id, availability_slots, sessions_total, sessions_used'
-    )
+    .select('matched_mentor_id, sessions_total, sessions_used')
     .eq('user_id', user.id)
     .maybeSingle<{
       matched_mentor_id: string | null
-      availability_slots: unknown
       sessions_total: number
       sessions_used: number
     }>()
@@ -97,8 +60,6 @@ export async function bookSession(input: {
       error: 'You have no session credits remaining this period.',
     }
   }
-
-  const studentOptIns = normalizeOptIns(studentProfile.availability_slots)
 
   const { data: mentorProfile } = await supabase
     .from('mentor_profiles')
@@ -121,7 +82,6 @@ export async function bookSession(input: {
 
   const validation = validateBookingSlot({
     mentorOptIns,
-    studentOptIns,
     startsAt,
   })
   if (!validation.valid) {

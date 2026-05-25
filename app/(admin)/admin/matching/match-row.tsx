@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Calendar,
   ChevronDown,
   ChevronUp,
   Loader as Loader2,
@@ -45,7 +44,6 @@ interface MatchRowProps {
     interests: string[]
     colleges: string[]
     careers: string[]
-    availability_slots: string[]
     created_at: string
     pending_requests: StudentPendingRequest[]
   }
@@ -57,15 +55,10 @@ interface MatchRowProps {
     active_mentees_count: number
     max_mentees: number
     rating: number
-    availability_slots: string[]
+    availability_slot_count: number
+    claim_status: string | null
+    assignable: boolean
   }[]
-}
-
-function intersectionSize(a: string[], b: string[]): number {
-  const set = new Set(a)
-  let n = 0
-  for (const item of b) if (set.has(item)) n++
-  return n
 }
 
 function defaultMentorSelection(
@@ -75,14 +68,18 @@ function defaultMentorSelection(
 ): string {
   if (matchedMentorId) return matchedMentorId
 
-  const optionIds = new Set(mentorOptions.map((m) => m.user_id))
+  const assignableIds = new Set(
+    mentorOptions.filter((m) => m.assignable).map((m) => m.user_id)
+  )
   const claimedRequest = pendingRequests.find(
-    (r) => r.claim_status === 'claimed' && optionIds.has(r.mentor_id)
+    (r) => r.claim_status !== 'ghost' && assignableIds.has(r.mentor_id)
   )
   if (claimedRequest) return claimedRequest.mentor_id
 
-  const firstInOptions = pendingRequests.find((r) => optionIds.has(r.mentor_id))
-  if (firstInOptions) return firstInOptions.mentor_id
+  const firstAssignableRequest = pendingRequests.find((r) =>
+    assignableIds.has(r.mentor_id)
+  )
+  if (firstAssignableRequest) return firstAssignableRequest.mentor_id
 
   return ''
 }
@@ -105,21 +102,25 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
   const isMatched = !!student.matched_mentor_id
   const dirty = selectedMentorId !== (student.matched_mentor_id ?? '')
 
+  const assignableMentors = useMemo(
+    () => mentorOptions.filter((m) => m.assignable),
+    [mentorOptions]
+  )
+
   const sortedMentors = useMemo(() => {
     const requestedIds = new Set(student.pending_requests.map((r) => r.mentor_id))
-    return [...mentorOptions]
+    return [...assignableMentors]
       .map((m) => ({
         ...m,
-        overlap: intersectionSize(m.availability_slots, student.availability_slots),
         atCapacity: m.active_mentees_count >= m.max_mentees,
         requested: requestedIds.has(m.user_id),
       }))
       .sort((a, b) => {
         if (a.requested !== b.requested) return a.requested ? -1 : 1
         if (a.atCapacity !== b.atCapacity) return a.atCapacity ? 1 : -1
-        return b.overlap - a.overlap
+        return b.rating - a.rating
       })
-  }, [mentorOptions, student.availability_slots, student.pending_requests])
+  }, [assignableMentors, student.pending_requests])
 
   const selectedMentor = sortedMentors.find(
     (m) => m.user_id === selectedMentorId
@@ -208,7 +209,7 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
                       {req.claim_status === 'ghost' && (
                         <Badge variant="secondary">
                           <Sparkles className="mr-1 h-3 w-3" />
-                          Ghost
+                          Ghost · not assignable
                         </Badge>
                       )}
                       <span className="text-[11px] text-text-3">
@@ -239,81 +240,73 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[12px] font-medium text-text-2">
-                Assign mentor
-              </label>
-              <span className="inline-flex items-center gap-1 text-[12px] text-text-3">
-                <Calendar className="h-3 w-3" />
-                Student has {student.availability_slots.length} slots set
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={selectedMentorId}
-                onChange={(e) => setSelectedMentorId(e.target.value)}
-                className="max-w-md flex-1"
-              >
-                <SelectOption value="">Select a mentor...</SelectOption>
-                {sortedMentors.map((m) => (
-                  <SelectOption key={m.user_id} value={m.user_id}>
-                    {m.requested ? '★ ' : ''}
-                    {m.full_name} {' \u00b7 '} {m.university} {' \u00b7 '}{' '}
-                    {m.overlap} overlap {m.atCapacity ? '(full)' : ''}
-                  </SelectOption>
-                ))}
-              </Select>
-              <Button
-                size="sm"
-                onClick={() => runAssign(selectedMentorId || null)}
-                disabled={!dirty || pending || !selectedMentorId}
-              >
-                {pending ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Saving
-                  </>
-                ) : isMatched ? (
-                  'Reassign'
-                ) : (
-                  'Assign'
-                )}
-              </Button>
-              {isMatched && (
+            <label className="text-[12px] font-medium text-text-2">
+              Assign mentor
+            </label>
+            {sortedMentors.length === 0 ? (
+              <p className="text-[12px] text-text-3">
+                No assignable mentors yet. Mentors must be claimed (not ghost)
+                and have at least one availability slot.
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={selectedMentorId}
+                  onChange={(e) => setSelectedMentorId(e.target.value)}
+                  className="max-w-md flex-1"
+                >
+                  <SelectOption value="">Select a mentor...</SelectOption>
+                  {sortedMentors.map((m) => (
+                    <SelectOption key={m.user_id} value={m.user_id}>
+                      {m.requested ? '★ ' : ''}
+                      {m.full_name} {' \u00b7 '} {m.university} {' \u00b7 '}
+                      {m.availability_slot_count} slot
+                      {m.availability_slot_count === 1 ? '' : 's'}
+                      {m.atCapacity ? ' (full)' : ''}
+                    </SelectOption>
+                  ))}
+                </Select>
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setSelectedMentorId('')
-                    runAssign(null)
-                  }}
-                  disabled={pending}
+                  onClick={() => runAssign(selectedMentorId || null)}
+                  disabled={!dirty || pending || !selectedMentorId}
                 >
-                  <X className="h-3.5 w-3.5" />
-                  Unassign
+                  {pending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Saving
+                    </>
+                  ) : isMatched ? (
+                    'Reassign'
+                  ) : (
+                    'Assign'
+                  )}
                 </Button>
-              )}
-            </div>
+                {isMatched && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedMentorId('')
+                      runAssign(null)
+                    }}
+                    disabled={pending}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Unassign
+                  </Button>
+                )}
+              </div>
+            )}
             {selectedMentor && (
               <div className="rounded-[var(--radius-sm)] bg-surface px-3 py-2 text-[12px] text-text-2">
-                {selectedMentor.overlap > 0 ? (
-                  <>
-                    <span className="font-medium text-text">
-                      {selectedMentor.overlap} overlapping slot
-                      {selectedMentor.overlap === 1 ? '' : 's'}
-                    </span>{' '}
-                    with {student.full_name || 'this student'}.{' '}
-                    {selectedMentor.atCapacity && (
-                      <span className="text-warning">
-                        Mentor is at capacity ({selectedMentor.active_mentees_count}
-                        /{selectedMentor.max_mentees}).
-                      </span>
-                    )}
-                  </>
-                ) : (
+                {selectedMentor.availability_slot_count} weekly slot
+                {selectedMentor.availability_slot_count === 1 ? '' : 's'}{' '}
+                set. Student can book any of those times after assignment.{' '}
+                {selectedMentor.atCapacity && (
                   <span className="text-warning">
-                    No overlapping availability slots. Student or mentor will need
-                    to add slots before they can book.
+                    Mentor is at capacity ({selectedMentor.active_mentees_count}/
+                    {selectedMentor.max_mentees}).
                   </span>
                 )}
               </div>

@@ -50,10 +50,9 @@ export default async function BookPage() {
         }>(),
       supabase
         .from('student_profiles')
-        .select('availability_slots, sessions_total, sessions_used')
+        .select('sessions_total, sessions_used')
         .eq('user_id', user.id)
         .single<{
-          availability_slots: unknown
           sessions_total: number
           sessions_used: number
         }>(),
@@ -70,12 +69,10 @@ export default async function BookPage() {
     ])
 
   const mentorSlots = normalizeOptIns(mentorRow?.availability_slots)
-  const studentSlots = normalizeOptIns(studentRow?.availability_slots)
   const sessionsTotal = studentRow?.sessions_total ?? 24
   const sessionsUsed = studentRow?.sessions_used ?? 0
   const sessionsRemaining = Math.max(0, sessionsTotal - sessionsUsed)
 
-  const studentNeedsAvailability = studentSlots.size === 0
   const mentorIsActive = mentorRow?.status === 'approved'
   const mentorHasSlots = mentorSlots.size > 0
 
@@ -86,7 +83,6 @@ export default async function BookPage() {
   const openSlots = mentorIsActive
     ? getOpenSlots({
         mentorOptIns: mentorSlots,
-        studentOptIns: studentSlots,
         existingBookings,
       })
     : []
@@ -101,7 +97,6 @@ export default async function BookPage() {
       sessionsTotal={sessionsTotal}
       mentorIsActive={mentorIsActive}
       mentorHasSlots={mentorHasSlots}
-      studentNeedsAvailability={studentNeedsAvailability}
       openSlots={openSlots.map((s) => ({
         startsAtIso: s.startsAt.toISOString(),
         day: s.day,

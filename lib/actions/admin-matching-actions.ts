@@ -7,6 +7,8 @@ import {
   notifyMentorAssigned,
   notifyStudentMatched,
 } from '@/lib/email/notifications'
+import { isMentorAssignableForMatch } from '@/lib/matching/mentor-eligibility'
+import { normalizeOptIns } from '@/lib/scheduling/slots'
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -73,6 +75,41 @@ export async function assignStudentMentor({
   }
 
   if (mentorId) {
+    const { data: mentorProfile } = await supabase
+      .from('mentor_profiles')
+      .select('claim_status, availability_slots, status')
+      .eq('user_id', mentorId)
+      .maybeSingle<{
+        claim_status: string | null
+        availability_slots: unknown
+        status: string
+      }>()
+
+    if (!mentorProfile || mentorProfile.status !== 'approved') {
+      return { ok: false, error: 'That mentor is not approved.' }
+    }
+
+    const slotCount = normalizeOptIns(mentorProfile.availability_slots).size
+    if (
+      !isMentorAssignableForMatch({
+        claimStatus: mentorProfile.claim_status,
+        availabilitySlotCount: slotCount,
+      })
+    ) {
+      if (mentorProfile.claim_status === 'ghost') {
+        return {
+          ok: false,
+          error:
+            'Ghost mentors cannot be assigned until they claim their profile on Pupil.',
+        }
+      }
+      return {
+        ok: false,
+        error:
+          'That mentor has not set availability yet. They need at least one weekly slot before assignment.',
+      }
+    }
+
     const now = new Date().toISOString()
     await supabase
       .from('match_requests')

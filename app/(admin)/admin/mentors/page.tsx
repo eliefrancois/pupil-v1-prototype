@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { getMentorStatsBatch } from '@/lib/supabase/queries'
+import { normalizeOptIns } from '@/lib/scheduling/slots'
 
 import MentorReviewRow from './mentor-row'
 import type { MentorReviewItem } from './types'
@@ -23,7 +24,7 @@ const STATUS_FILTERS = [
 const PAGE_SIZE = 50
 
 const MENTOR_LIST_SELECT =
-  'user_id, university, major, grad_year, year_in_school, bio, photo_url, linkedin_url, tags, max_mentees, active_mentees_count, sessions_count, rating, status, submitted_at, reviewed_at, reviewed_by, review_notes, motivations, identity_json, commitment, timezone, availability_schedule'
+  'user_id, university, major, grad_year, year_in_school, bio, photo_url, linkedin_url, tags, max_mentees, active_mentees_count, sessions_count, rating, status, submitted_at, reviewed_at, reviewed_by, review_notes, motivations, identity_json, commitment, timezone, availability_schedule, availability_slots'
 
 export default async function AdminMentorsPage({
   searchParams,
@@ -129,6 +130,7 @@ export default async function AdminMentorsPage({
       active_mentees_count: stats?.activeMentees ?? 0,
       sessions_count: stats?.sessionsCount ?? 0,
       rating: stats && stats.sessionsCount > 0 ? stats.rating : null,
+      availability_slot_count: normalizeOptIns(row.availability_slots).size,
     } as MentorReviewItem
   })
 

@@ -1,17 +1,13 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Clock } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
+import { isMentorAssignableForMatch } from '@/lib/matching/mentor-eligibility'
 import { normalizeOptIns } from '@/lib/scheduling/slots'
-import {
-  MIN_QUEUE_SLOTS,
-  isMatchQueueEligible,
-} from '@/lib/scheduling/canonical-slots'
 
 import MatchRow, { type StudentPendingRequest } from './match-row'
 
@@ -29,7 +25,6 @@ type StudentRow = {
   interests: string[]
   colleges: string[]
   careers: string[]
-  availability_slots: string[]
   created_at: string
   pending_requests: StudentPendingRequest[]
 }
@@ -42,7 +37,9 @@ type MentorOption = {
   active_mentees_count: number
   max_mentees: number
   rating: number
-  availability_slots: string[]
+  availability_slot_count: number
+  claim_status: string | null
+  assignable: boolean
 }
 
 export default async function AdminMatchingPage({
@@ -50,12 +47,7 @@ export default async function AdminMatchingPage({
 }: {
   searchParams: { show?: string }
 }) {
-  const tab =
-    searchParams?.show === 'waiting'
-      ? 'waiting'
-      : searchParams?.show === 'matched'
-        ? 'matched'
-        : 'queue'
+  const tab = searchParams?.show === 'matched' ? 'matched' : 'queue'
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/admin/matching')
   if (user.role !== 'admin') {
@@ -79,25 +71,25 @@ export default async function AdminMatchingPage({
 
   const [studentsRes, mentorsRes, mentorUsersRes, pendingRequestsRes] =
     await Promise.all([
-    supabase
-      .from('student_profiles')
-      .select(
-        'user_id, grade, city, state, interests, colleges, careers, matched_mentor_id, availability_slots, created_at'
-      )
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('mentor_profiles')
-      .select(
-        'user_id, university, major, active_mentees_count, max_mentees, rating, availability_slots, status, claim_status, claim_email_sent_at'
-      )
-      .eq('status', 'approved'),
-    supabase.from('users').select('id, full_name, email, role'),
-    supabase
-      .from('match_requests')
-      .select('id, student_id, mentor_id, student_message, requested_at')
-      .eq('status', 'pending')
-      .order('requested_at', { ascending: false }),
-  ])
+      supabase
+        .from('student_profiles')
+        .select(
+          'user_id, grade, city, state, interests, colleges, careers, matched_mentor_id, created_at'
+        )
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('mentor_profiles')
+        .select(
+          'user_id, university, major, active_mentees_count, max_mentees, rating, availability_slots, status, claim_status, claim_email_sent_at'
+        )
+        .eq('status', 'approved'),
+      supabase.from('users').select('id, full_name, email, role'),
+      supabase
+        .from('match_requests')
+        .select('id, student_id, mentor_id, student_message, requested_at')
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: false }),
+    ])
 
   if (studentsRes.error) {
     console.error('[admin/matching] failed to load student profiles', studentsRes.error)
@@ -195,7 +187,6 @@ export default async function AdminMatchingPage({
         interests: row.interests ?? [],
         colleges: row.colleges ?? [],
         careers: row.careers ?? [],
-        availability_slots: Array.from(normalizeOptIns(row.availability_slots)),
         created_at: row.created_at,
         pending_requests: pendingByStudent.get(row.user_id) ?? [],
       }
@@ -203,31 +194,29 @@ export default async function AdminMatchingPage({
 
   const mentorOptions: MentorOption[] = Array.from(
     mentorByUserId.values()
-  ).map((m) => ({
-    user_id: m.user_id,
-    full_name: mentorNameById.get(m.user_id) ?? '',
-    university: m.university,
-    major: m.major,
-    active_mentees_count: m.active_mentees_count ?? 0,
-    max_mentees: m.max_mentees ?? 3,
-    rating: m.rating ?? 0,
-    availability_slots: Array.from(normalizeOptIns(m.availability_slots)),
-  }))
+  ).map((m) => {
+    const availabilitySlotCount = normalizeOptIns(m.availability_slots).size
+    return {
+      user_id: m.user_id,
+      full_name: mentorNameById.get(m.user_id) ?? '',
+      university: m.university,
+      major: m.major,
+      active_mentees_count: m.active_mentees_count ?? 0,
+      max_mentees: m.max_mentees ?? 3,
+      rating: m.rating ?? 0,
+      availability_slot_count: availabilitySlotCount,
+      claim_status: m.claim_status ?? null,
+      assignable: isMentorAssignableForMatch({
+        claimStatus: m.claim_status,
+        availabilitySlotCount,
+      }),
+    }
+  })
 
-  const eligibleStudents = students.filter((s) =>
-    isMatchQueueEligible(s.availability_slots.length)
-  )
-  const waitingStudents = students.filter(
-    (s) => !isMatchQueueEligible(s.availability_slots.length)
-  )
   const matchedStudents = students.filter((s) => s.matched_mentor_id)
-  const queueStudents = eligibleStudents.filter((s) => !s.matched_mentor_id)
-  const visibleStudents =
-    tab === 'waiting'
-      ? waitingStudents
-      : tab === 'matched'
-        ? matchedStudents
-        : queueStudents
+  const queueStudents = students.filter((s) => !s.matched_mentor_id)
+  const visibleStudents = tab === 'matched' ? matchedStudents : queueStudents
+  const assignableMentorCount = mentorOptions.filter((m) => m.assignable).length
 
   return (
     <div className="h-full overflow-y-auto">
@@ -238,22 +227,12 @@ export default async function AdminMatchingPage({
           </h1>
           <p className="mt-1 text-[14px] text-text-2">
             {queueStudents.length} need a match · {matchedStudents.length}{' '}
-            matched
-            {waitingStudents.length > 0 && (
-              <>
-                {' '}
-                ·{' '}
-                <span className="text-text-3">
-                  {waitingStudents.length} waiting on availability
-                </span>
-              </>
-            )}
+            matched · {assignableMentorCount} assignable mentor
+            {assignableMentorCount === 1 ? '' : 's'}
           </p>
         </div>
 
-        {(queueStudents.length > 0 ||
-          matchedStudents.length > 0 ||
-          waitingStudents.length > 0) && (
+        {(queueStudents.length > 0 || matchedStudents.length > 0) && (
           <div className="flex gap-1 rounded-[var(--radius)] border border-line bg-surface-2 p-1">
             <Button
               variant={tab === 'queue' ? 'default' : 'ghost'}
@@ -275,17 +254,6 @@ export default async function AdminMatchingPage({
                 Matched ({matchedStudents.length})
               </Link>
             </Button>
-            <Button
-              variant={tab === 'waiting' ? 'default' : 'ghost'}
-              size="sm"
-              asChild
-              className="flex-1"
-            >
-              <Link href="/admin/matching?show=waiting">
-                <Clock className="h-3.5 w-3.5" />
-                Waiting ({waitingStudents.length})
-              </Link>
-            </Button>
           </div>
         )}
 
@@ -293,37 +261,23 @@ export default async function AdminMatchingPage({
           <Card className="p-12 text-center">
             <CardContent className="p-0">
               <p className="text-[15px] font-semibold text-text">
-                {tab === 'waiting'
-                  ? 'No students waiting on availability'
-                  : tab === 'matched'
-                    ? 'No matched students yet'
-                    : students.length === 0
-                      ? 'No students yet'
-                      : 'No students need a match right now'}
+                {tab === 'matched'
+                  ? 'No matched students yet'
+                  : students.length === 0
+                    ? 'No students yet'
+                    : 'No students need a match right now'}
               </p>
               <p className="mt-1 text-[13px] text-text-2">
-                {tab === 'waiting'
-                  ? 'Every active student has set at least the minimum availability.'
-                  : tab === 'matched'
-                    ? 'Assign mentors from the Needs match tab. Matched pairs show up here.'
-                    : students.length === 0
-                      ? "Once students complete onboarding, they'll show up here ready to be matched."
-                      : `Students enter the queue once they pick at least ${MIN_QUEUE_SLOTS} availability slots.`}
+                {tab === 'matched'
+                  ? 'Assign mentors from the Needs match tab. Matched pairs show up here.'
+                  : students.length === 0
+                    ? "Once students complete onboarding, they'll show up here ready to be matched."
+                    : 'Every onboarded student without a mentor appears here. Ghost mentor requests stay visible for outreach but cannot be assigned until claimed.'}
               </p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
-            {tab === 'waiting' && (
-              <Card className="bg-surface-2 border-line">
-                <CardContent className="p-4 text-[13px] text-text-2">
-                  These students haven&apos;t set the minimum{' '}
-                  {MIN_QUEUE_SLOTS} availability slots yet, so the matcher
-                  can&apos;t score them. They show up in the in-queue tab as
-                  soon as they save more times.
-                </CardContent>
-              </Card>
-            )}
             {visibleStudents.map((student) => (
               <MatchRow
                 key={student.user_id}
@@ -334,21 +288,16 @@ export default async function AdminMatchingPage({
           </div>
         )}
 
-        {mentorOptions.length === 0 && students.length > 0 && (
+        {assignableMentorCount === 0 && students.length > 0 && (
           <Card className="border-warning bg-[rgba(245,158,11,0.05)]">
             <CardContent className="p-5">
               <p className="text-[13px] font-medium text-text">
-                No approved mentors available to assign
+                No mentors ready to assign
               </p>
               <p className="mt-1 text-[12px] text-text-2">
-                Approve mentor applications under{' '}
-                <a
-                  href="/admin/mentors?status=pending"
-                  className="text-primary hover:underline"
-                >
-                  Mentors &rarr; Pending review
-                </a>{' '}
-                before you can complete any matches.
+                Approved mentors need to claim their profile (if ghost) and set
+                at least one weekly availability slot before you can match them.
+                Ghost requests can still nudge mentors via the claim email.
               </p>
             </CardContent>
           </Card>
@@ -366,6 +315,10 @@ export default async function AdminMatchingPage({
                 <span className="flex items-center gap-1.5">
                   <Badge variant="warning">Unmatched</Badge>
                   Awaiting assignment
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Badge variant="secondary">Ghost</Badge>
+                  Requestable, not assignable until claimed
                 </span>
               </div>
             </CardContent>

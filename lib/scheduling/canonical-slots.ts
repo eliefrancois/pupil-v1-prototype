@@ -27,19 +27,6 @@ export const BOOKING_HORIZON_DAYS = 28
 /** Cancellation refund cutoff. */
 export const CANCEL_REFUND_HOURS = 24
 
-/**
- * Minimum slots a student must opt into before they enter the matching queue.
- * Below this threshold, overlap with any single mentor is too sparse to make
- * a meaningful match. We surface this as guidance to the student and as a
- * filter in the admin matching tool.
- */
-export const MIN_QUEUE_SLOTS = 3
-
-/** Returns true if a slot count is high enough to be in the matching queue. */
-export function isMatchQueueEligible(slotCount: number): boolean {
-  return slotCount >= MIN_QUEUE_SLOTS
-}
-
 export type SlotKey = { day: number; slot: number }
 
 export function isWeekend(dayOfWeek: number): boolean {

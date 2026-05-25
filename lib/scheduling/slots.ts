@@ -92,32 +92,24 @@ export function serializeOptIns(ids: Iterable<string>): string[] {
 
 /**
  * Compute open slots for the next `horizonDays` calendar days, starting
- * `from` (defaults to "now"). Open = both parties opted in AND not already
+ * `from` (defaults to "now"). Open = mentor opted in AND not already
  * booked in `existingBookings`.
- *
- * `existingBookings` is the list of session_bookings rows we want to subtract.
- * Pass them with status='upcoming' filtered upstream.
  */
 export function getOpenSlots(params: {
   mentorOptIns: Set<string>
-  studentOptIns: Set<string>
   existingBookings: { startsAt: Date }[]
   from?: Date
   horizonDays?: number
 }): OpenSlot[] {
   const {
     mentorOptIns,
-    studentOptIns,
     existingBookings,
     from = new Date(),
     horizonDays = BOOKING_HORIZON_DAYS,
   } = params
 
   const now = from
-  const intersect = new Set<string>()
-  for (const id of mentorOptIns) if (studentOptIns.has(id)) intersect.add(id)
-
-  if (intersect.size === 0) return []
+  if (mentorOptIns.size === 0) return []
 
   const bookedKey = (d: Date) => d.toISOString()
   const taken = new Set(existingBookings.map((b) => bookedKey(b.startsAt)))
@@ -129,7 +121,7 @@ export function getOpenSlots(params: {
     const hours = slotHoursForDay(dayOfWeek)
     for (let s = 0; s < hours.length; s++) {
       const id = slotKeyId({ day: dayOfWeek, slot: s })
-      if (!intersect.has(id)) continue
+      if (!mentorOptIns.has(id)) continue
       const startsAt = slotStartUtc(cursor, s)
       if (!startsAt) continue
       if (startsAt.getTime() <= now.getTime()) continue
@@ -198,15 +190,14 @@ export function groupSlotsByDay(slots: OpenSlot[]): {
 }
 
 /**
- * Helper to confirm a (mentor, student, startsAt) tuple is a valid canonical
- * slot both parties opted into. Used by the server action before writing.
+ * Confirm a (mentor, startsAt) tuple is a valid canonical slot the mentor
+ * opted into. Used by the server action before writing.
  */
 export function validateBookingSlot(params: {
   mentorOptIns: Set<string>
-  studentOptIns: Set<string>
   startsAt: Date
 }): { valid: true; key: SlotKey } | { valid: false; reason: string } {
-  const { mentorOptIns, studentOptIns, startsAt } = params
+  const { mentorOptIns, startsAt } = params
   const dayOfWeek = Number(formatInTimeZone(startsAt, ET, 'i')) % 7
   const hour = Number(formatInTimeZone(startsAt, ET, 'H'))
   const slotIdx = slotHoursForDay(dayOfWeek).indexOf(hour)
@@ -223,9 +214,6 @@ export function validateBookingSlot(params: {
   const id = slotKeyId({ day: dayOfWeek, slot: slotIdx })
   if (!mentorOptIns.has(id)) {
     return { valid: false, reason: 'Mentor is not available at that slot.' }
-  }
-  if (!studentOptIns.has(id)) {
-    return { valid: false, reason: 'You have not opted into that slot.' }
   }
   return { valid: true, key: { day: dayOfWeek, slot: slotIdx } }
 }

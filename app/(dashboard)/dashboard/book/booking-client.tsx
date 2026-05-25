@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { ArrowLeft, Calendar, CheckCircle2, Settings } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle2 } from 'lucide-react'
 import { addDays, startOfWeek } from 'date-fns'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,7 +32,6 @@ interface BookingClientProps {
   sessionsTotal: number
   mentorIsActive: boolean
   mentorHasSlots: boolean
-  studentNeedsAvailability: boolean
   openSlots: ClientSlot[]
 }
 
@@ -44,7 +43,6 @@ export default function BookingClient({
   sessionsTotal,
   mentorIsActive,
   mentorHasSlots,
-  studentNeedsAvailability,
   openSlots,
 }: BookingClientProps) {
   const router = useRouter()
@@ -175,43 +173,14 @@ export default function BookingClient({
           </Card>
         )}
 
-        {mentorIsActive && mentorHasSlots && studentNeedsAvailability && (
-          <Card className="border-warning bg-[rgba(245,158,11,0.05)]">
-            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-warning/10 text-warning">
-                  <Calendar className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[14px] font-semibold text-text">
-                    Set your availability to book
-                  </p>
-                  <p className="mt-0.5 text-[13px] text-text-2">
-                    Tell us when you can usually meet. We&apos;ll only show
-                    slots that overlap with {mentorName}&apos;s availability.
-                  </p>
-                </div>
-              </div>
-              <Button asChild className="sm:shrink-0">
-                <Link href="/dashboard/schedule">Set availability</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {mentorIsActive && mentorHasSlots && !studentNeedsAvailability && (
+        {mentorIsActive && mentorHasSlots && (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border border-line bg-surface px-4 py-3">
+            <div className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3">
               <p className="text-[13px] text-text-2">
-                Sessions are 30 minutes. Times shown in US Eastern; tap to see
-                your local time.
+                Sessions are 30 minutes. Pick any open time from{' '}
+                {mentorName}&apos;s availability. Times shown in US Eastern;
+                tap to see your local time.
               </p>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/dashboard/schedule">
-                  <Settings className="h-3.5 w-3.5" />
-                  Edit my availability
-                </Link>
-              </Button>
             </div>
 
             <div className="flex gap-1 rounded-[var(--radius)] border border-line bg-surface-2 p-1">
@@ -271,17 +240,13 @@ export default function BookingClient({
                 <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
                   <Calendar className="h-10 w-10 text-text-3" />
                   <p className="text-[14px] font-medium text-text">
-                    No overlapping availability
+                    No open slots right now
                   </p>
                   <p className="max-w-md text-[13px] text-text-2">
-                    None of your slots overlap with your mentor&apos;s. Add
-                    more times to your availability so we can find a match.
+                    {mentorName} has no upcoming availability in the next few
+                    weeks, or those times are already booked. Check back soon
+                    or message your mentor.
                   </p>
-                  <Button variant="outline" size="sm" className="mt-2" asChild>
-                    <Link href="/dashboard/schedule">
-                      Edit my availability
-                    </Link>
-                  </Button>
                 </CardContent>
               </Card>
             )}

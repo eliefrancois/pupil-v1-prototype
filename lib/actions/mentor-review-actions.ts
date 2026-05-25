@@ -71,6 +71,7 @@ export async function updateMentorReviewStatus({
     void notifyMentorApproved({
       mentorEmail,
       mentorName,
+      mentorUserId,
       university,
     })
   }

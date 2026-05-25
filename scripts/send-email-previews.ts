@@ -41,6 +41,7 @@ async function main() {
       subject: '[Pupil preview] Mentor approved',
       node: MentorApprovedEmail({
         mentorName: REVIEW_NAME,
+        mentorUserId: '9faea745-98e5-43f3-9892-7ae526734b07',
         university: 'New York University',
       }),
     },

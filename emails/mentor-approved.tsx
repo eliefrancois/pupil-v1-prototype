@@ -7,14 +7,17 @@ import { SITE_URL, colors, fonts } from './_components/theme'
 
 export interface MentorApprovedEmailProps {
   mentorName: string
+  mentorUserId: string
   university?: string | null
 }
 
 export default function MentorApprovedEmail({
   mentorName = 'Jordan',
+  mentorUserId = '9faea745-98e5-43f3-9892-7ae526734b07',
   university = 'New York University',
 }: MentorApprovedEmailProps) {
   const firstName = mentorName.trim().split(/\s+/)[0]
+  const profileUrl = `${SITE_URL}/mentors/${mentorUserId}`
 
   return (
     <EmailShell
@@ -84,8 +87,8 @@ export default function MentorApprovedEmail({
         }}
       >
         Your public profile:{' '}
-        <a href={`${SITE_URL}/mentors`} style={{ color: colors.primary }}>
-          {SITE_URL}/mentors
+        <a href={profileUrl} style={{ color: colors.primary }}>
+          {profileUrl}
         </a>
       </Text>
     </EmailShell>

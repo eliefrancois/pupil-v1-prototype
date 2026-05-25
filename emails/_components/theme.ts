@@ -33,5 +33,6 @@ export const fonts = {
   serif: 'Georgia, "Times New Roman", Times, serif',
 } as const
 
-export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? 'https://getpupil.com'
+import { getSiteUrl } from '@/lib/site-url'
+
+export const SITE_URL = getSiteUrl()

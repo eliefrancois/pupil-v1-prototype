@@ -18,7 +18,9 @@ import StudentMatchedEmail from '@/emails/student-matched'
 import MentorAssignedEmail from '@/emails/mentor-assigned'
 import MentorApprovedEmail from '@/emails/mentor-approved'
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+import { getSiteUrl } from '@/lib/site-url'
+
+const SITE_URL = getSiteUrl()
 const RESEND_KEY = process.env.RESEND_API_KEY
 const ADMIN_EMAIL = 'dario@getpupil.com'
 
@@ -171,10 +173,12 @@ export async function notifyMentorAssigned(payload: {
 export async function notifyMentorApproved(payload: {
   mentorEmail: string
   mentorName: string
+  mentorUserId: string
   university: string | null
 }) {
   const node = MentorApprovedEmail({
     mentorName: payload.mentorName,
+    mentorUserId: payload.mentorUserId,
     university: payload.university,
   })
 

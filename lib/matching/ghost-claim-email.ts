@@ -3,7 +3,9 @@ import crypto from 'node:crypto'
 import { notifyGhostMentorToClaim } from '@/lib/email/notifications'
 import { createServiceClient } from '@/lib/supabase/service'
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+import { getSiteUrl } from '@/lib/site-url'
+
+const SITE_URL = getSiteUrl()
 
 /**
  * Sends (or re-sends) the ghost mentor claim email. Regenerates the claim

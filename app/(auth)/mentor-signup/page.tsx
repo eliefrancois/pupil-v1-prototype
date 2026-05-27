@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BrandMark from '@/components/brand-mark'
 
+const MENTOR_PARTNER_DOMAINS = ['hispanicheritage.org'] as const
+
 export default function MentorSignupPage() {
   const router = useRouter()
   const [fullName, setFullName] = useState('')
@@ -38,8 +40,15 @@ export default function MentorSignupPage() {
     e.preventDefault()
     setError('')
 
-    if (!email.endsWith('.edu')) {
-      setError('A .edu email address is required for mentor accounts.')
+    const lowerEmail = email.trim().toLowerCase()
+    const isEduEmail = lowerEmail.endsWith('.edu')
+    const isPartnerEmail = MENTOR_PARTNER_DOMAINS.some((domain) =>
+      lowerEmail.endsWith(`@${domain}`)
+    )
+    if (!isEduEmail && !isPartnerEmail) {
+      setError(
+        'A .edu or partner organization email is required for mentor accounts.'
+      )
       return
     }
 
@@ -182,7 +191,8 @@ export default function MentorSignupPage() {
                 />
               </div>
               <p className="text-[12px] text-text-3">
-                A .edu email is required to verify your university enrollment.
+                A .edu email or partner organization email is required to verify
+                your enrollment.
               </p>
             </div>
 

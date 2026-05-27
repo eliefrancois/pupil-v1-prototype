@@ -77,10 +77,14 @@ function roleLabel(role: ParticipantRole): string {
   return ROLE_LABEL[role] ?? ''
 }
 
-// What "X/3 strikes" actually triggers today. Kept aligned with
-// lib/actions/message-actions.ts so the UI never overpromises.
+// What the strike counter actually triggers today. Kept aligned with
+// lib/actions/message-actions.ts so the UI never overpromises. The counter
+// has no cap — it keeps climbing past 3, which is why we no longer show
+// "X/3" framing.
 const STRIKE_TOOLTIP =
-  'Each flagged message adds a strike. At 3 strikes the account is marked under review and an admin is emailed. The user is not auto-suspended — an admin must take action.'
+  'Each flagged message adds a strike. Threshold is 3: when first crossed, the account is marked under review and an admin is emailed. The user is not auto-suspended — an admin must take action. The count keeps climbing past 3 to preserve signal.'
+
+const STRIKE_THRESHOLD = 3
 
 const ACTION_TOOLTIPS = {
   release:
@@ -168,15 +172,20 @@ function PendingFlagCard({
                     <span
                       className={cn(
                         'font-bold',
-                        flag.sender_strikes >= 3
+                        flag.sender_strikes >= STRIKE_THRESHOLD
                           ? 'text-red-600'
-                          : flag.sender_strikes >= 2
+                          : flag.sender_strikes >= STRIKE_THRESHOLD - 1
                             ? 'text-orange-600'
                             : 'text-gray-700'
                       )}
                     >
-                      {flag.sender_strikes}/3
+                      {flag.sender_strikes}
                     </span>
+                    {flag.sender_strikes >= STRIKE_THRESHOLD && (
+                      <span className="text-[11px] font-medium text-red-600">
+                        · over threshold
+                      </span>
+                    )}
                     <Info className="h-3 w-3 text-gray-400" />
                   </span>
                 </TooltipTrigger>

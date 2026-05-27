@@ -20,15 +20,23 @@ const SOCIAL_REGEX =
 // Catches conversational asks to move off-platform even when no handle is
 // shared. Examples: "what's your insta", "send me your snap", "DM me",
 // "add me on tiktok", "my whatsapp is...", "let's switch to discord".
+// Recognizes both "your" and the text-speak variants "ur", "yur", "yor".
 const SOCIAL_SOLICITATION_REGEX =
-  /\b(?:what'?s?\s+your|send\s+me\s+your|gimme\s+your|give\s+me\s+your|dm\s+me|add\s+me\s+on|follow\s+me\s+on|message\s+me\s+on|find\s+me\s+on|hit\s+me\s+up\s+on|let'?s?\s+(?:switch|move|chat|talk)\s+(?:to|on)|my\s+(?:ig|insta|instagram|snap|snapchat|tiktok|twitter|whatsapp|telegram|discord|kik|fb|facebook|number|phone)\s+is|your\s+(?:ig|insta|instagram|snap|snapchat|tiktok|twitter|whatsapp|telegram|discord|kik|fb|facebook|number|phone))\b/i
+  /\b(?:wha?t'?s?\s+(?:your|ur|yur|yor)|send\s+me\s+(?:your|ur)|gimme\s+(?:your|ur)|give\s+me\s+(?:your|ur)|dm\s+me|add\s+me\s+on|follow\s+me\s+on|message\s+me\s+on|find\s+me\s+on|hit\s+me\s+up\s+on|hmu\s+on|let'?s?\s+(?:switch|move|chat|talk)\s+(?:to|on)|my\s+(?:ig|insta|instagram|snap|snapchat|tiktok|tikkers|twitter|whatsapp|telegram|discord|kik|fb|facebook|messenger|signal|number|phone|cell)\s+is|(?:your|ur|yur|yor)\s+(?:ig|insta|instagram|snap|snapchat|tiktok|tikkers|twitter|whatsapp|telegram|discord|kik|fb|facebook|messenger|signal|number|phone|cell))\b/i
+
+// Aggressive: catches ANY mention of an off-platform messaging app. False
+// positives like "I saw that on instagram" get flagged too — acceptable
+// trade-off for a youth safety platform. Admins can release in /admin/flags.
+const PLATFORM_MENTION_REGEX =
+  /\b(?:insta(?:gram)?|ig|snap(?:chat)?|tiktok|whatsapp|telegram|discord|kik|messenger|signal|wechat|venmo|cashapp|zelle|onlyfans)\b/i
 
 function detectContactInfo(text: string): boolean {
   return (
     PHONE_REGEX.test(text) ||
     EMAIL_REGEX.test(text) ||
     SOCIAL_REGEX.test(text) ||
-    SOCIAL_SOLICITATION_REGEX.test(text)
+    SOCIAL_SOLICITATION_REGEX.test(text) ||
+    PLATFORM_MENTION_REGEX.test(text)
   )
 }
 
@@ -38,6 +46,7 @@ function redactContactInfo(text: string): string {
     .replace(EMAIL_REGEX, '[email removed]')
     .replace(SOCIAL_REGEX, '[handle removed]')
     .replace(SOCIAL_SOLICITATION_REGEX, '[off-platform contact attempt]')
+    .replace(PLATFORM_MENTION_REGEX, '[off-platform reference]')
 }
 
 /* ------------------------------------------------------------------ */
@@ -106,13 +115,13 @@ Tier 1 — Mild profanity only: casual swearing like "damn", "hell", "crap", "as
 
 Tier 2 — Bigotry OR external contact:
 - ANY slur or hate speech: racial slurs, homophobic slurs (e.g. "faggot", "dyke"), sexist slurs, ableist slurs, ethnic slurs. These are ALWAYS Tier 2 even if they also count as profanity. A slur is never Tier 1.
-- Attempts to share OR REQUEST personal contact info (phone, email, social media handles) to move communication off-platform. This includes conversational asks even without a handle attached. Examples that ARE Tier 2: "what's your insta", "what's your snap", "send me your number", "DM me", "add me on tiktok", "my whatsapp is 555-1234", "find me on discord", "let's switch to instagram". Any reference to an off-platform messaging app (Instagram, Snapchat, TikTok, WhatsApp, Discord, Telegram, Kik, Facebook, Twitter/X) in a contact-exchange context is Tier 2.
+- Attempts to share OR REQUEST personal contact info (phone, email, social media handles) to move communication off-platform. This includes conversational asks even without a handle attached, text-speak variants ("ur", "yur"), and bare mentions of off-platform apps. Examples that ARE Tier 2: "what's your insta", "ur tiktok?", "tiktok?", "snap?", "send me your number", "DM me", "add me on tiktok", "my whatsapp is 555-1234", "find me on discord", "let's switch to instagram", "hmu on snap". ANY reference to an off-platform messaging app (Instagram, Snapchat, TikTok, WhatsApp, Discord, Telegram, Kik, Facebook, Twitter/X, Messenger, Signal, Venmo, CashApp, OnlyFans) is Tier 2 unless it is unambiguously about content the user saw on that platform with NO exchange context — when in doubt, classify as Tier 2 and let an admin release it.
 
 Tier 3 — Sexual content: sexually explicit language, suggestive messages, grooming patterns, requests for photos/meetups.
 
 IMPORTANT: If a word is BOTH profanity AND a slur targeting a group (race, sexuality, gender, disability, ethnicity), it is Tier 2, NOT Tier 1. Tier 1 is exclusively for mild, non-hateful swearing.
 
-Set is_contact_info=true if the message is ANY off-platform contact attempt: contains real contact info OR requests it OR references off-platform apps for messaging. False positives to ignore: example numbers like "(555) 555-5555", area code mentions, email format explanations, @mentions that aren't real handles, casual mentions like "I saw that on instagram" without any exchange context.
+Set is_contact_info=true if the message is ANY off-platform contact attempt: contains real contact info OR requests it OR references off-platform apps for messaging OR is a single-word/short fragment referencing a platform (e.g. "tiktok?", "snap", "insta"). Bias toward flagging — false positives are cheap (admins can release), missed solicitations are not. Only ignore obvious example numbers like "(555) 555-5555" or area code mentions in didactic contexts.
 
 The regex pre-filter ${hasContactRegex ? 'DID' : 'did NOT'} flag potential contact info.
 

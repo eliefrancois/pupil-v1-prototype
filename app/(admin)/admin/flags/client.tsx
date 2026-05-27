@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Shield,
   CheckCircle,
@@ -293,9 +294,11 @@ export default function FlagsClient({
   resolved: FlaggedMessage[]
   stats: FlagStats
 }) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabOption>('Pending')
   const [activeFilter, setActiveFilter] = useState<FilterOption>('All')
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set())
+  const [actionError, setActionError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function tierMatches(flag: FlaggedMessage): boolean {
@@ -311,13 +314,19 @@ export default function FlagsClient({
   const filteredResolved = resolved.filter(tierMatches)
 
   function handleAction(messageId: string, action: 'release' | 'confirm' | 'escalate') {
+    setActionError(null)
     startTransition(async () => {
-      await resolveFlag({ messageId, action })
+      const result = await resolveFlag({ messageId, action })
+      if (!result.ok) {
+        setActionError(result.error)
+        return
+      }
       setResolvedIds((prev) => {
         const next = new Set(Array.from(prev))
         next.add(messageId)
         return next
       })
+      router.refresh()
     })
   }
 
@@ -332,6 +341,15 @@ export default function FlagsClient({
             flags below and resolve.
           </p>
         </div>
+
+        {actionError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {actionError}
+          </div>
+        )}
 
         {/* Aggregate stats */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

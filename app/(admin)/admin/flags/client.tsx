@@ -14,6 +14,11 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { resolveFlag } from '@/lib/actions/flag-actions'
 import type { FlaggedMessage, FlagStats, ParticipantRole } from './page'
@@ -156,63 +161,83 @@ function PendingFlagCard({
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-              <span
-                className="inline-flex items-center gap-1 text-gray-500"
-                title={STRIKE_TOOLTIP}
-              >
-                Strikes:
-                <span
-                  className={cn(
-                    'font-bold',
-                    flag.sender_strikes >= 3
-                      ? 'text-red-600'
-                      : flag.sender_strikes >= 2
-                        ? 'text-orange-600'
-                        : 'text-gray-700'
-                  )}
-                >
-                  {flag.sender_strikes}/3
-                </span>
-                <Info className="h-3 w-3 text-gray-400" />
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex cursor-help items-center gap-1 text-gray-500">
+                    Strikes:
+                    <span
+                      className={cn(
+                        'font-bold',
+                        flag.sender_strikes >= 3
+                          ? 'text-red-600'
+                          : flag.sender_strikes >= 2
+                            ? 'text-orange-600'
+                            : 'text-gray-700'
+                      )}
+                    >
+                      {flag.sender_strikes}/3
+                    </span>
+                    <Info className="h-3 w-3 text-gray-400" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">{STRIKE_TOOLTIP}</TooltipContent>
+              </Tooltip>
               <Badge variant={status.variant}>{status.label}</Badge>
             </div>
           </div>
 
           <div className="flex shrink-0 flex-col gap-2">
-            <Button
-              size="sm"
-              variant="soft"
-              className="gap-1.5"
-              onClick={() => onAction(flag.id, 'release')}
-              disabled={isPending}
-              title={ACTION_TOOLTIPS.release}
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              Release
-            </Button>
-            <Button
-              size="sm"
-              variant="success"
-              className="gap-1.5"
-              onClick={() => onAction(flag.id, 'confirm')}
-              disabled={isPending}
-              title={ACTION_TOOLTIPS.confirm}
-            >
-              <CheckCircle className="h-3.5 w-3.5" />
-              Confirm
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              className="gap-1.5"
-              onClick={() => onAction(flag.id, 'escalate')}
-              disabled={isPending}
-              title={ACTION_TOOLTIPS.escalate}
-            >
-              <ShieldAlert className="h-3.5 w-3.5" />
-              Escalate
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="soft"
+                  className="gap-1.5"
+                  onClick={() => onAction(flag.id, 'release')}
+                  disabled={isPending}
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                  Release
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                {ACTION_TOOLTIPS.release}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="success"
+                  className="gap-1.5"
+                  onClick={() => onAction(flag.id, 'confirm')}
+                  disabled={isPending}
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Confirm
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                {ACTION_TOOLTIPS.confirm}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  className="gap-1.5"
+                  onClick={() => onAction(flag.id, 'escalate')}
+                  disabled={isPending}
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  Escalate
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                {ACTION_TOOLTIPS.escalate}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </CardContent>

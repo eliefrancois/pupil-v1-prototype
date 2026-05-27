@@ -3,6 +3,7 @@ import { Newsreader } from 'next/font/google'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 
+import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
 
 const newsreader = Newsreader({
@@ -29,7 +30,9 @@ export default function RootLayout({
       lang="en"
       className={`${GeistSans.variable} ${GeistMono.variable} ${newsreader.variable}`}
     >
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+      </body>
     </html>
   )
 }

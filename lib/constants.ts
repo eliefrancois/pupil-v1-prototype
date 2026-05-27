@@ -81,6 +81,34 @@ export const NAV_ADMIN: NavItem[] = [
   { id: "eligibility", label: "Eligibility", href: "/admin/eligibility", icon: "CheckCircle" },
 ]
 
+// ---------- Partner / pilot admin scoping ----------
+//
+// Admins on this list get a trimmed-down NAV_ADMIN limited to the tab IDs in
+// LIMITED_ADMIN_TAB_IDS. Stubs and internal-ops tools stay invisible to them
+// while we share read-only-ish access for the pilot. Internal Pupil admins
+// (e.g. dario@getpupil.com, elie@getpupil.com) are not on this list and keep
+// full NAV_ADMIN.
+//
+// To extend: add another email here, or move to a DB-backed flag once we
+// outgrow allow-listing.
+// To revert: delete LIMITED_ADMIN_EMAILS and the navForAdmin helper.
+const LIMITED_ADMIN_EMAILS: ReadonlySet<string> = new Set([
+  'andres@hispanicheritage.org',
+])
+
+const LIMITED_ADMIN_TAB_IDS: ReadonlySet<string> = new Set([
+  'dashboard',
+  'flags',
+])
+
+export function navForAdmin(userEmail: string | null | undefined): NavItem[] {
+  if (!userEmail) return NAV_ADMIN
+  if (LIMITED_ADMIN_EMAILS.has(userEmail.toLowerCase())) {
+    return NAV_ADMIN.filter((item) => LIMITED_ADMIN_TAB_IDS.has(item.id))
+  }
+  return NAV_ADMIN
+}
+
 // ---------- FAQ ----------
 
 export const FAQ_ITEMS: FaqItem[] = [

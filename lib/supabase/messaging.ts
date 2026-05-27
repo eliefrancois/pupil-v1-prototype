@@ -95,7 +95,11 @@ export async function getConversationsForUser(
 /**
  * Load the most recent N messages for a conversation, ordered oldest-first
  * for display (we fetch DESC then reverse).
- * Excludes messages that an admin has blocked.
+ *
+ * Blocked messages are included so both sender and recipient see the
+ * "[removed for violating community guidelines]" notice in the thread.
+ * The original content is never exposed to either party — only the policy
+ * notice text stored in `content` is shown.
  */
 export async function getMessages(
   conversationId: string,
@@ -106,7 +110,6 @@ export async function getMessages(
     .from('messages')
     .select('*')
     .eq('conversation_id', conversationId)
-    .or('admin_action.is.null,admin_action.neq.blocked')
     .order('created_at', { ascending: false })
     .limit(limit)
 

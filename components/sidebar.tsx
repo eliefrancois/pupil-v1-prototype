@@ -23,7 +23,7 @@ import {
   PanelLeftOpen,
 } from 'lucide-react'
 
-import { NAV_STUDENT, NAV_MENTOR, NAV_ADMIN, type NavItem } from '@/lib/constants'
+import { NAV_STUDENT, NAV_MENTOR, NAV_ADMIN, navForAdmin, type NavItem } from '@/lib/constants'
 import BrandMark from '@/components/brand-mark'
 import UserMenu from '@/components/user-menu'
 import { cn } from '@/lib/utils'
@@ -53,6 +53,14 @@ const navByRole: Record<string, NavItem[]> = {
   admin: NAV_ADMIN,
 }
 
+function resolveNavForRole(
+  role: 'student' | 'mentor' | 'admin',
+  user: CurrentUser | null
+): NavItem[] {
+  if (role === 'admin') return navForAdmin(user?.email)
+  return navByRole[role] ?? NAV_STUDENT
+}
+
 interface SidebarProps {
   role: 'student' | 'mentor' | 'admin'
   user: CurrentUser | null
@@ -62,7 +70,7 @@ interface SidebarProps {
 export default function Sidebar({ role, user, badges }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const items = navByRole[role] ?? NAV_STUDENT
+  const items = resolveNavForRole(role, user)
 
   return (
     <aside

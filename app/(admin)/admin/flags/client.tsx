@@ -5,9 +5,10 @@ import {
   Shield,
   CheckCircle,
   Undo2,
-  AlertTriangle,
   ShieldAlert,
   User,
+  ArrowRight,
+  Info,
 } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,7 +16,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { resolveFlag } from '@/lib/actions/flag-actions'
-import type { FlaggedMessage, FlagStats } from './page'
+import type { FlaggedMessage, FlagStats, ParticipantRole } from './page'
+
+const TAB_OPTIONS = ['Pending', 'Resolved'] as const
+type TabOption = (typeof TAB_OPTIONS)[number]
 
 const FILTER_OPTIONS = ['All', 'Tier 1', 'Tier 2', 'Tier 3'] as const
 type FilterOption = (typeof FILTER_OPTIONS)[number]
@@ -56,24 +60,221 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'success' | 'warnin
   suspended: { label: 'Suspended', variant: 'danger' },
 }
 
+const ROLE_LABEL: Record<ParticipantRole, string> = {
+  student: 'Student',
+  mentor: 'Mentor',
+  admin: 'Admin',
+  parent: 'Parent',
+  unknown: '',
+}
+
+function roleLabel(role: ParticipantRole): string {
+  return ROLE_LABEL[role] ?? ''
+}
+
+// What "X/3 strikes" actually triggers today. Kept aligned with
+// lib/actions/message-actions.ts so the UI never overpromises.
+const STRIKE_TOOLTIP =
+  'Each flagged message adds a strike. At 3 strikes the account is marked under review and an admin is emailed. The user is not auto-suspended — an admin must take action.'
+
+const ACTION_TOOLTIPS = {
+  release:
+    'Mark as a false positive. Restores the original message for the recipient, removes the strike from the sender, and clears the flag.',
+  confirm:
+    'Confirm the flag was correct. The message stays blocked. The strike already added when the message was sent stays on the sender.',
+  escalate:
+    'Confirm the flag AND immediately suspend the sender\u2019s account (moderation_status = suspended). Use when the violation is severe enough that the user should not keep messaging.',
+} as const
+
+const ADMIN_ACTION_BADGE: Record<
+  'blocked' | 'released',
+  { label: string; variant: 'danger' | 'success' }
+> = {
+  blocked: { label: 'Blocked', variant: 'danger' },
+  released: { label: 'Released (false positive)', variant: 'success' },
+}
+
+function PairLabel({ flag }: { flag: FlaggedMessage }) {
+  const senderRole = roleLabel(flag.sender_role)
+  const recipientRole = roleLabel(flag.recipient_role)
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-gray-600">
+      <User className="h-3 w-3 text-gray-400" />
+      <span className="font-medium text-gray-900">{flag.sender_name}</span>
+      {senderRole && (
+        <span className="text-gray-400">({senderRole.toLowerCase()})</span>
+      )}
+      <ArrowRight className="h-3 w-3 text-gray-400" />
+      <span className="font-medium text-gray-900">{flag.recipient_name}</span>
+      {recipientRole && (
+        <span className="text-gray-400">({recipientRole.toLowerCase()})</span>
+      )}
+    </div>
+  )
+}
+
+function FlagBadges({ flag }: { flag: FlaggedMessage }) {
+  const config = getTierConfig(flag.flag_tier)
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge variant={config.badge}>
+        {flag.flag_tier ? `Tier ${flag.flag_tier}` : 'Unclassified'}
+      </Badge>
+      <Badge variant="default">
+        {REASON_LABELS[flag.flag_reason ?? ''] ?? flag.flag_reason ?? 'Flagged'}
+      </Badge>
+      <span className="text-xs text-gray-400">{formatTime(flag.created_at)}</span>
+    </div>
+  )
+}
+
+function PendingFlagCard({
+  flag,
+  isPending,
+  onAction,
+}: {
+  flag: FlaggedMessage
+  isPending: boolean
+  onAction: (id: string, action: 'release' | 'confirm' | 'escalate') => void
+}) {
+  const config = getTierConfig(flag.flag_tier)
+  const status = STATUS_BADGE[flag.sender_status] ?? STATUS_BADGE.active
+
+  return (
+    <Card className={cn('overflow-hidden border-l-4', config.border)}>
+      <CardContent className="p-5">
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <FlagBadges flag={flag} />
+
+            <div className="mt-3">
+              <PairLabel flag={flag} />
+            </div>
+
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-sm text-gray-700">{flag.content}</p>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+              <span
+                className="inline-flex items-center gap-1 text-gray-500"
+                title={STRIKE_TOOLTIP}
+              >
+                Strikes:
+                <span
+                  className={cn(
+                    'font-bold',
+                    flag.sender_strikes >= 3
+                      ? 'text-red-600'
+                      : flag.sender_strikes >= 2
+                        ? 'text-orange-600'
+                        : 'text-gray-700'
+                  )}
+                >
+                  {flag.sender_strikes}/3
+                </span>
+                <Info className="h-3 w-3 text-gray-400" />
+              </span>
+              <Badge variant={status.variant}>{status.label}</Badge>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-col gap-2">
+            <Button
+              size="sm"
+              variant="soft"
+              className="gap-1.5"
+              onClick={() => onAction(flag.id, 'release')}
+              disabled={isPending}
+              title={ACTION_TOOLTIPS.release}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Release
+            </Button>
+            <Button
+              size="sm"
+              variant="success"
+              className="gap-1.5"
+              onClick={() => onAction(flag.id, 'confirm')}
+              disabled={isPending}
+              title={ACTION_TOOLTIPS.confirm}
+            >
+              <CheckCircle className="h-3.5 w-3.5" />
+              Confirm
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              className="gap-1.5"
+              onClick={() => onAction(flag.id, 'escalate')}
+              disabled={isPending}
+              title={ACTION_TOOLTIPS.escalate}
+            >
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Escalate
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ResolvedFlagCard({ flag }: { flag: FlaggedMessage }) {
+  const config = getTierConfig(flag.flag_tier)
+  const adminAction = flag.admin_action
+    ? ADMIN_ACTION_BADGE[flag.admin_action]
+    : null
+
+  return (
+    <Card className={cn('overflow-hidden border-l-4 opacity-90', config.border)}>
+      <CardContent className="p-5">
+        <FlagBadges flag={flag} />
+
+        <div className="mt-3">
+          <PairLabel flag={flag} />
+        </div>
+
+        <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+          <p className="text-sm text-gray-700">{flag.content}</p>
+        </div>
+
+        {adminAction && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-gray-500">Resolution:</span>
+            <Badge variant={adminAction.variant}>{adminAction.label}</Badge>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function FlagsClient({
-  flags,
+  pending,
+  resolved,
   stats,
 }: {
-  flags: FlaggedMessage[]
+  pending: FlaggedMessage[]
+  resolved: FlaggedMessage[]
   stats: FlagStats
 }) {
+  const [activeTab, setActiveTab] = useState<TabOption>('Pending')
   const [activeFilter, setActiveFilter] = useState<FilterOption>('All')
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
 
-  const filteredFlags = flags.filter((flag) => {
-    if (resolvedIds.has(flag.id)) return false
+  function tierMatches(flag: FlaggedMessage): boolean {
     if (activeFilter === 'Tier 1') return flag.flag_tier === 1
     if (activeFilter === 'Tier 2') return flag.flag_tier === 2
     if (activeFilter === 'Tier 3') return flag.flag_tier === 3
     return true
-  })
+  }
+
+  const filteredPending = pending.filter(
+    (flag) => !resolvedIds.has(flag.id) && tierMatches(flag)
+  )
+  const filteredResolved = resolved.filter(tierMatches)
 
   function handleAction(messageId: string, action: 'release' | 'confirm' | 'escalate') {
     startTransition(async () => {
@@ -92,7 +293,9 @@ export default function FlagsClient({
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Trust & Safety</h1>
           <p className="mt-1 text-sm text-gray-500">
-            All flagged messages are auto-blocked from recipients. Review and resolve below.
+            Flagged messages are auto-blocked from the recipient. Both sender
+            and recipient see a policy notice in their thread. Review pending
+            flags below and resolve.
           </p>
         </div>
 
@@ -116,6 +319,31 @@ export default function FlagsClient({
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="mb-4 flex gap-1 border-b border-gray-200">
+          {TAB_OPTIONS.map((tab) => {
+            const count = tab === 'Pending' ? pending.length - resolvedIds.size : resolved.length
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  'relative px-4 py-2 text-sm font-medium transition-colors',
+                  activeTab === tab
+                    ? 'border-b-2 border-[#7A60E4] text-[#7A60E4]'
+                    : 'text-gray-500 hover:text-gray-900'
+                )}
+              >
+                {tab}
+                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-600">
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
         {/* Filter pills */}
         <div className="mb-6 flex flex-wrap gap-2">
           {FILTER_OPTIONS.map((option) => (
@@ -135,9 +363,9 @@ export default function FlagsClient({
           ))}
         </div>
 
-        {/* Flag cards */}
+        {/* Card list */}
         <div className="space-y-4">
-          {filteredFlags.length === 0 && (
+          {activeTab === 'Pending' && filteredPending.length === 0 && (
             <div className="flex flex-col items-center py-12">
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-50">
                 <Shield className="h-5 w-5 text-green-600" />
@@ -149,92 +377,34 @@ export default function FlagsClient({
             </div>
           )}
 
-          {filteredFlags.map((flag) => {
-            const config = getTierConfig(flag.flag_tier)
-            const status = STATUS_BADGE[flag.sender_status] ?? STATUS_BADGE.active
-            return (
-              <Card
+          {activeTab === 'Resolved' && filteredResolved.length === 0 && (
+            <div className="flex flex-col items-center py-12">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                <Shield className="h-5 w-5 text-gray-500" />
+              </div>
+              <p className="text-sm font-medium text-gray-900">
+                Nothing resolved yet
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Past admin decisions will appear here.
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'Pending' &&
+            filteredPending.map((flag) => (
+              <PendingFlagCard
                 key={flag.id}
-                className={cn('overflow-hidden border-l-4', config.border)}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-4">
-                    <div className="min-w-0 flex-1">
-                      {/* Tier + reason badges */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={config.badge}>
-                          {flag.flag_tier ? `Tier ${flag.flag_tier}` : 'Unclassified'}
-                        </Badge>
-                        <Badge variant="default">
-                          {REASON_LABELS[flag.flag_reason ?? ''] ?? flag.flag_reason ?? 'Flagged'}
-                        </Badge>
-                        <span className="text-xs text-gray-400">
-                          {formatTime(flag.created_at)}
-                        </span>
-                      </div>
+                flag={flag}
+                isPending={isPending}
+                onAction={handleAction}
+              />
+            ))}
 
-                      {/* Message content */}
-                      <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                        <p className="text-sm text-gray-700">{flag.content}</p>
-                      </div>
-
-                      {/* Sender info bar */}
-                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                        <span className="inline-flex items-center gap-1.5 text-gray-500">
-                          <User className="h-3 w-3" />
-                          <span className="font-medium text-gray-700">{flag.sender_name}</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-gray-500">
-                          Strikes:
-                          <span className={cn(
-                            'font-bold',
-                            flag.sender_strikes >= 3 ? 'text-red-600' : flag.sender_strikes >= 2 ? 'text-orange-600' : 'text-gray-700'
-                          )}>
-                            {flag.sender_strikes}/3
-                          </span>
-                        </span>
-                        <Badge variant={status.variant}>{status.label}</Badge>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex shrink-0 flex-col gap-2">
-                      <Button
-                        size="sm"
-                        variant="soft"
-                        className="gap-1.5"
-                        onClick={() => handleAction(flag.id, 'release')}
-                        disabled={isPending}
-                      >
-                        <Undo2 className="h-3.5 w-3.5" />
-                        Release
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="success"
-                        className="gap-1.5"
-                        onClick={() => handleAction(flag.id, 'confirm')}
-                        disabled={isPending}
-                      >
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        Confirm
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        className="gap-1.5"
-                        onClick={() => handleAction(flag.id, 'escalate')}
-                        disabled={isPending}
-                      >
-                        <ShieldAlert className="h-3.5 w-3.5" />
-                        Escalate
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+          {activeTab === 'Resolved' &&
+            filteredResolved.map((flag) => (
+              <ResolvedFlagCard key={flag.id} flag={flag} />
+            ))}
         </div>
       </div>
     </div>

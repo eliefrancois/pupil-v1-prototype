@@ -53,3 +53,4 @@ Thumbs.db
 uploads/
 *.local
 scripts/data/
+scripts/output/

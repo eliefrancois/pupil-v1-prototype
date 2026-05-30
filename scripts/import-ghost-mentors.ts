@@ -507,8 +507,11 @@ async function generateBio(row: CleanedRow): Promise<string | null> {
 }
 
 function buildBioPrompt(row: CleanedRow): string {
-  const location = row.identity.location
-    ? `${row.identity.location.city}, ${row.identity.location.state}`
+  // Child-safety: mentees are minors, so a mentor bio must never reveal a
+  // city/neighborhood/borough-level home location. Only ever pass state-level
+  // location into the prompt (or none).
+  const location = row.identity.location?.state
+    ? row.identity.location.state
     : null
   const academicLine = row.academic ? `Academic interests: ${row.academic}.` : ''
   const careerLine = row.career ? `Career interests: ${row.career}.` : ''
@@ -520,7 +523,8 @@ function buildBioPrompt(row: CleanedRow): string {
     ? `What frustrated them about applying to college: "${row.frustration}".`
     : ''
   const firstGen = row.identity.first_gen ? 'They are a first-gen college student.' : ''
-  const locationLine = location ? `From ${location}.` : ''
+  // State-level only. Never a city/town/neighborhood/borough.
+  const locationLine = location ? `Home state (state-level only): ${location}.` : ''
 
   return `Write a short first-person mentor bio for the Pupil college mentorship platform.
 
@@ -557,24 +561,26 @@ BANNED PHRASES (these are AI tells, NEVER use them, no exceptions):
 
 DO NOT infer year-in-school from the grad year. Don't say "sophomore", "junior", "senior". Say "class of 2027" or just the school name.
 
+LOCATION (child-safety, NON-NEGOTIABLE): Mentees are minors. NEVER reference the mentor's city, town, neighborhood, or borough (no "from the Bronx", "Brooklyn", "grew up in Tucson", etc.). If you reference where they're from at all, use the STATE only, or leave location out entirely. Referring to colleges or target schools (e.g. "schools like NYU") is fine because that's about destinations, not the mentor's home.
+
 VOICE:
 - First person, casual but warm.
 - Short sentences. Fragments OK.
-- Lead with a concrete fact: school, hometown, or what you'd help with.
-- Specifics beat feelings. Name actual fields, places, situations.
+- Lead with a concrete fact: school, home state, or what you'd help with.
+- Specifics beat feelings. Name actual fields, situations (but never a home city/neighborhood).
 - End on the offer (what you'll help with), not a generic closer.
 - 2-3 sentences. 30-50 words.
 
 GOOD EXAMPLES (study the voice):
 
-Example 1 — Stanford CS student from Brooklyn:
-"Stanford '26, studying CS with a focus on systems. Grew up in Brooklyn, public schools the whole way. Happy to talk through CS apps, the supplement essays nobody knows what to do with, or whether a top school is worth taking on loans."
+Example 1 — Stanford CS student from New York:
+"Stanford '26, studying CS with a focus on systems. Grew up in New York, public schools the whole way. Happy to talk through CS apps, the supplement essays nobody knows what to do with, or whether a top school is worth taking on loans."
 
 Example 2 — first-gen Penn student:
 "First in my family to go to college. I'm at Penn studying econ and African American studies. Got really lost during the Common App and CSS Profile. Ask me anything about financial aid, especially if your school doesn't have a counselor who knows the process."
 
 Example 3 — Caltech engineering student:
-"Caltech '27 from Eden Prairie, Minnesota. Engineering, but mostly interested in startups and how research actually becomes a product. I can help with STEM-heavy apps, scholarship essays, or thinking about gap years."
+"Caltech '27 from Minnesota. Engineering, but mostly interested in startups and how research actually becomes a product. I can help with STEM-heavy apps, scholarship essays, or thinking about gap years."
 
 Output ONLY the bio text. No quotes around it. No labels. No preamble.`
 }

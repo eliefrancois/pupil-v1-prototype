@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   title: 'Pupil - College Guidance Your Family Can Trust',
   description:
     'Pupil connects your student with relatable near-peer college mentors who share their goals, identity, and vibe.',
+  appleWebApp: { title: 'Pupil' },
 }
 
 export default function RootLayout({

@@ -96,11 +96,17 @@ const config: Config = {
           from: { opacity: '0', transform: 'translateY(6px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        // gap-x-12 (3rem) between the two duplicated tracks keeps the loop seamless
+        marquee: {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(calc(-100% - 3rem))' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'pg-in': 'pg-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1)',
+        marquee: 'marquee 40s linear infinite',
       },
       maxWidth: {
         page: '1180px',

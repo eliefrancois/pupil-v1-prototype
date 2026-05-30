@@ -15,6 +15,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { UniversityMarquee } from '@/components/marketing/university-marquee'
 
 /* ---------- Hero ---------- */
 
@@ -468,6 +469,7 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
+      <UniversityMarquee />
       <HowItWorksSection />
       <OurApproachSection />
       <MentorsSection />

@@ -15,6 +15,14 @@ interface MentorDirectoryProps {
   mentors: PublicMentor[]
 }
 
+// Display-only title casing for specialty chips/badges. Capitalizes the first
+// letter of each word while leaving the rest untouched, so acronyms like
+// "STEM" stay intact. The canonical values in MENTOR_SPECIALTIES are unchanged
+// because they're used for matching and stored mentor tags.
+function titleCaseTag(tag: string): string {
+  return tag.replace(/\b[a-z]/g, (c) => c.toUpperCase())
+}
+
 export default function MentorDirectory({ mentors }: MentorDirectoryProps) {
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -99,7 +107,7 @@ export default function MentorDirectory({ mentors }: MentorDirectoryProps) {
                       : 'border border-border text-text-2 hover:border-primary hover:text-primary'
                   }`}
                 >
-                  {tag}
+                  {titleCaseTag(tag)}
                 </button>
               ))}
             </div>
@@ -187,7 +195,7 @@ export default function MentorDirectory({ mentors }: MentorDirectoryProps) {
                           <div className="mt-3 flex flex-wrap gap-1">
                             {cleanTags.slice(0, 3).map((tag) => (
                               <Badge key={tag} variant="purple">
-                                {tag}
+                                {titleCaseTag(tag)}
                               </Badge>
                             ))}
                           </div>

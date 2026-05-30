@@ -3,8 +3,8 @@ import Link from 'next/link'
 import BrandMark from '@/components/brand-mark'
 
 const productLinks = [
-  { label: 'For Parents', href: '/' },
-  { label: 'For Students', href: '/students' },
+  { label: 'For Families', href: '/' },
+  { label: 'For Schools', href: '/schools' },
   { label: 'Browse Mentors', href: '/mentors' },
   { label: 'Pricing', href: '/pricing' },
   { label: 'MentorGPT Waitlist', href: '/waitlist' },
@@ -17,7 +17,7 @@ const mentorLinks = [
 
 const companyLinks = [
   { label: 'Free Access', href: '/access' },
-  { label: 'School Pilot', href: '#' },
+  { label: 'School Pilot', href: '/schools' },
   { label: 'Newsroom', href: '/newsroom' },
   { label: 'FAQs', href: '/faqs' },
 ]

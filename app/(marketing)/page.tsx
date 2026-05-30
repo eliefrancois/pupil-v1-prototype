@@ -27,7 +27,7 @@ function HeroSection() {
           <div>
             <Badge variant="default" className="mb-6 px-3 py-1.5 text-[12px]">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-              For Parents
+              For Families
             </Badge>
 
             <h1 className="display text-[44px] leading-[1.05] md:text-[64px]">
@@ -37,8 +37,8 @@ function HeroSection() {
 
             <p className="mt-6 max-w-lg text-[17px] leading-relaxed text-text-2">
               Pupil connects your student with relatable near-peer college
-              mentors who share their goals, identity, and vibe, so they get
-              guidance that actually fits.
+              mentors who share their goals, identity, and vibe, so the whole
+              family gets guidance that actually fits.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -463,6 +463,33 @@ function FAQSection() {
   )
 }
 
+/* ---------- Bring Pupil to your school ---------- */
+
+function BringPupilToSchoolSection() {
+  return (
+    <section className="border-t border-border bg-surface py-20 md:py-28">
+      <div className="mx-auto max-w-page px-6">
+        <div className="mx-auto max-w-2xl rounded-[var(--radius-lg)] border border-border bg-bg p-10 text-center shadow-sm">
+          <Badge variant="default" className="mb-4">
+            For schools &amp; orgs
+          </Badge>
+          <h2 className="display text-[28px] md:text-[40px]">
+            Bring Pupil to your school
+          </h2>
+          <p className="mx-auto mt-4 max-w-md text-[15px] leading-relaxed text-text-2">
+            Counselors, districts, and nonprofit partners use Pupil to give
+            every student a vetted near-peer mentor, with admin oversight and
+            Trust &amp; Safety built in.
+          </p>
+          <Button size="lg" className="mt-6" asChild>
+            <Link href="/schools">Explore Pupil for schools</Link>
+          </Button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 /* ---------- Page ---------- */
 
 export default function HomePage() {
@@ -476,6 +503,7 @@ export default function HomePage() {
       <TestimonialsSection />
       <PricingTeaserSection />
       <FAQSection />
+      <BringPupilToSchoolSection />
     </>
   )
 }

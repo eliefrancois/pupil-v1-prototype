@@ -16,6 +16,12 @@ const nextConfig = {
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
+  async redirects() {
+    return [
+      // The former "For Students" marketing page was repurposed into "For Schools".
+      { source: '/students', destination: '/schools', permanent: true },
+    ]
+  },
 }
 
 module.exports = nextConfig

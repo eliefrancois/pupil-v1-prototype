@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import BrandMark from '@/components/brand-mark'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -99,6 +99,8 @@ export default function OnboardingPage() {
     set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
   }
 
+  const canContinueStep1 = gpa.length > 0
+
   const handleSubmit = async () => {
     setLoading(true)
     const supabase = createClient()
@@ -130,10 +132,7 @@ export default function OnboardingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <div className="flex items-center justify-between border-b bg-white px-6 py-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-[#7A60E4]" />
-          <span className="text-lg font-semibold">pupil</span>
-        </Link>
+        <BrandMark size="sm" />
         <span className="text-sm text-gray-400">Step {step} of {totalSteps}</span>
       </div>
 
@@ -162,9 +161,9 @@ export default function OnboardingPage() {
                 </select>
               </div>
               <div>
-                <Label>GPA range <span className="font-normal text-gray-400">(optional)</span></Label>
+                <Label>GPA range</Label>
                 <select className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm" value={gpa} onChange={e => setGpa(e.target.value)}>
-                  <option value="">Prefer not to say</option>
+                  <option value="" disabled>Select GPA range</option>
                   <option>4.0+</option>
                   <option>3.7-3.9</option>
                   <option>3.4-3.6</option>
@@ -286,7 +285,10 @@ export default function OnboardingPage() {
           ) : <span />}
 
           {step < totalSteps ? (
-            <Button onClick={() => setStep(s => s + 1)}>
+            <Button
+              onClick={() => setStep(s => s + 1)}
+              disabled={step === 1 && !canContinueStep1}
+            >
               Next <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (

@@ -10,6 +10,7 @@ import {
   Loader as Loader2,
   Mail,
   MapPin,
+  Pencil,
   School,
   Users,
 } from 'lucide-react'
@@ -20,6 +21,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { updateMentorReviewStatus } from '@/lib/actions/mentor-review-actions'
 import { MIN_MENTOR_MATCH_SLOTS } from '@/lib/matching/mentor-eligibility'
 
+import MentorEditDialog from './mentor-edit-dialog'
 import type { MentorReviewItem } from './types'
 
 const TIME_WINDOW_LABELS: Record<string, string> = {
@@ -42,6 +44,7 @@ export default function MentorReviewRow({
   const [error, setError] = useState('')
   const [rejectNotes, setRejectNotes] = useState('')
   const [showRejectInput, setShowRejectInput] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const initials = (mentor.full_name || mentor.email)
     .split(' ')
@@ -449,15 +452,34 @@ export default function MentorReviewRow({
               Move back to pending
             </Button>
           )}
-          <a
-            href={`mailto:${mentor.email}`}
-            className="ml-auto inline-flex items-center gap-1 text-[12px] font-medium text-text-2 hover:text-primary"
-          >
-            <Mail className="h-3.5 w-3.5" />
-            Email
-          </a>
+          <div className="ml-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={!!busy}
+              className="inline-flex items-center gap-1 text-[12px] font-medium text-text-2 hover:text-primary disabled:opacity-50"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </button>
+            <a
+              href={`mailto:${mentor.email}`}
+              className="inline-flex items-center gap-1 text-[12px] font-medium text-text-2 hover:text-primary"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Email
+            </a>
+          </div>
         </div>
       </CardContent>
+
+      {editing && (
+        <MentorEditDialog
+          mentor={mentor}
+          open={editing}
+          onOpenChange={setEditing}
+        />
+      )}
     </Card>
   )
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { getStudentProfile } from '@/lib/supabase/queries'
+import { labelsForCodes } from '@/lib/identity-taxonomy'
 
 export default async function ProfilePage() {
   const user = await getCurrentUser()
@@ -14,10 +15,39 @@ export default async function ProfilePage() {
 
   const profile = await getStudentProfile(user.id)
 
-  const identity = (profile?.identity_json ?? {}) as {
-    ethnicity?: string
-    first_gen?: boolean
+  const identity = (profile?.identity_json ?? {}) as Record<string, unknown>
+
+  const codeArray = (key: string): string[] => {
+    const raw = identity[key]
+    return Array.isArray(raw)
+      ? raw.filter((x): x is string => typeof x === 'string')
+      : []
   }
+
+  // New canonical shape (code arrays) with a fallback to the legacy
+  // single-string `ethnicity` / boolean `first_gen` for pre-overhaul rows.
+  const raceLabels = labelsForCodes('race_ethnicity', codeArray('race_ethnicity'))
+  const legacyEthnicity =
+    typeof identity.ethnicity === 'string' ? identity.ethnicity : ''
+  const raceDisplay =
+    raceLabels.length > 0
+      ? raceLabels.join(', ')
+      : legacyEthnicity || 'Prefer not to say'
+
+  const academicLabels = labelsForCodes(
+    'academic_identity',
+    codeArray('academic_identity')
+  )
+
+  const firstGenLabels = labelsForCodes('first_gen', codeArray('first_gen'))
+  const firstGenDisplay =
+    firstGenLabels.length > 0
+      ? firstGenLabels.join(', ')
+      : typeof identity.first_gen === 'boolean'
+        ? identity.first_gen
+          ? 'Yes'
+          : 'No'
+        : 'Prefer not to say'
 
   return (
     <div className="h-full overflow-y-auto">
@@ -107,19 +137,16 @@ export default async function ProfilePage() {
                 <CardTitle className="text-base">Background</CardTitle>
               </CardHeader>
               <CardContent>
+                <ProfileRow label="Race / ethnicity" value={raceDisplay} />
+                {academicLabels.length > 0 && (
+                  <ProfileRow
+                    label="Academic identity"
+                    value={academicLabels.join(', ')}
+                  />
+                )}
                 <ProfileRow
-                  label="Ethnic background"
-                  value={identity.ethnicity || 'Prefer not to say'}
-                />
-                <ProfileRow
-                  label="First-generation college student"
-                  value={
-                    identity.first_gen === undefined
-                      ? 'Prefer not to say'
-                      : identity.first_gen
-                        ? 'Yes'
-                        : 'No'
-                  }
+                  label="First-generation / family background"
+                  value={firstGenDisplay}
                 />
               </CardContent>
             </Card>

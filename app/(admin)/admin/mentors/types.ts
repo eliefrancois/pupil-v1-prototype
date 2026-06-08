@@ -19,12 +19,10 @@ export type MentorReviewItem = {
   reviewed_at: string | null
   review_notes: string | null
   motivations: string[] | null
-  identity_json: {
-    gender?: string
-    ethnicities?: string[]
-    first_gen?: string
-    mentee_preferences?: string[]
-  } | null
+  // Canonical taxonomy stores code arrays/values keyed by dimension_key. Legacy
+  // rows may still carry the old gender/ethnicities/first_gen/mentee_preferences
+  // shape; the row component resolves both.
+  identity_json: Record<string, unknown> | null
   commitment: string | null
   timezone: string | null
   availability_schedule: { time_windows?: string[] } | null

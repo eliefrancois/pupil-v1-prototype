@@ -9,6 +9,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, ArrowRight, CheckCircle, Loader as Loader2 } from 'lucide-react'
 
+import {
+  backgroundDimensions,
+  fitDimensions,
+  sensitiveDimensions,
+  getDimension,
+  type Dimension,
+} from '@/lib/identity-taxonomy'
+import {
+  DimensionField,
+  type Role,
+} from '@/components/onboarding/identity-fields'
+import {
+  emptyIdentityState,
+  serializeIdentity,
+  type IdentityState,
+} from '@/lib/onboarding-identity'
+
+const ROLE: Role = 'mentee'
 
 const INTERESTS = [
   'Computer Science', 'Biology', 'Engineering', 'Business', 'Psychology',
@@ -30,6 +48,8 @@ const COLLEGES = [
   'UC Berkeley', 'Michigan', 'UVA', 'Northwestern', 'USC', 'Emory',
   'Tufts', 'Boston College', 'Vanderbilt', 'Rice', 'Notre Dame',
 ]
+
+const GPA_DIMENSION = getDimension('gpa_range')!
 
 function TagPicker({ options, selected, onToggle, placeholder }: {
   options: string[]
@@ -79,7 +99,7 @@ export default function OnboardingPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const totalSteps = 5
+  const totalSteps = 7
 
   const [grade, setGrade] = useState('')
   const [gpa, setGpa] = useState('')
@@ -90,14 +110,35 @@ export default function OnboardingPage() {
   const [careers, setCareers] = useState<string[]>([])
   const [colleges, setColleges] = useState<string[]>([])
 
-  const [ethnicity, setEthnicity] = useState('')
-  const [firstGen, setFirstGen] = useState('')
+  // Canonical taxonomy answers (background + fit prefs + sensitive).
+  const [identity, setIdentity] = useState<IdentityState>(emptyIdentityState())
 
   const [bio, setBio] = useState('')
 
   const toggleIn = (arr: string[], set: (v: string[]) => void, val: string) => {
     set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
   }
+
+  const valueFor = (dim: Dimension): string[] | string =>
+    identity.answers[dim.dimension_key] ?? (dim.select === 'multi' ? [] : '')
+
+  const setAnswer = (key: string, next: string[] | string) =>
+    setIdentity((s) => ({ ...s, answers: { ...s.answers, [key]: next } }))
+
+  const setSelfText = (key: string, v: string) =>
+    setIdentity((s) => ({ ...s, selfText: { ...s.selfText, [key]: v } }))
+
+  const renderDim = (dim: Dimension) => (
+    <DimensionField
+      key={dim.dimension_key}
+      dim={dim}
+      role={ROLE}
+      value={valueFor(dim)}
+      onChange={(next) => setAnswer(dim.dimension_key, next)}
+      selfDescribeText={identity.selfText[dim.dimension_key] ?? ''}
+      onSelfDescribeTextChange={(v) => setSelfText(dim.dimension_key, v)}
+    />
+  )
 
   const canContinueStep1 = gpa.length > 0
 
@@ -111,6 +152,11 @@ export default function OnboardingPage() {
       return
     }
 
+    const { identityJson, promoted, fitPreferences } = serializeIdentity(
+      ROLE,
+      identity
+    )
+
     await supabase.from('student_profiles').upsert({
       user_id: user.id,
       grade: parseInt(grade) || null,
@@ -121,7 +167,14 @@ export default function OnboardingPage() {
       colleges,
       careers,
       bio: bio.trim() || null,
-      identity_json: { ethnicity, first_gen: firstGen === 'yes' },
+      identity_json: identityJson,
+      // Pair PREFERENCE side + college target list -> fit_preferences.
+      fit_preferences: { ...fitPreferences, college_list: colleges },
+      // Promoted matching columns (mentee mirror dims). Pair columns stay
+      // empty for mentees — their pair answers are preferences, not attributes.
+      race_ethnicity: promoted.race_ethnicity ?? [],
+      academic_identity: promoted.academic_identity ?? [],
+      first_gen: promoted.first_gen ?? [],
     })
 
     await supabase.from('users').update({ onboarding_complete: true }).eq('id', user.id)
@@ -151,7 +204,7 @@ export default function OnboardingPage() {
             <p className="mt-2 text-gray-500">This helps us match you with mentors who&apos;ve been where you are.</p>
             <div className="mt-8 space-y-5">
               <div>
-                <Label>Grade level</Label>
+                <Label>Grade level <span className="font-normal text-gray-400">(optional)</span></Label>
                 <select className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm" value={grade} onChange={e => setGrade(e.target.value)}>
                   <option value="">Select grade</option>
                   <option value="9">9th</option>
@@ -161,23 +214,21 @@ export default function OnboardingPage() {
                 </select>
               </div>
               <div>
-                <Label>GPA range</Label>
+                <Label>GPA range <span className="font-medium text-[#7A60E4]">(required)</span></Label>
                 <select className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm" value={gpa} onChange={e => setGpa(e.target.value)}>
                   <option value="" disabled>Select GPA range</option>
-                  <option>4.0+</option>
-                  <option>3.7-3.9</option>
-                  <option>3.4-3.6</option>
-                  <option>3.0-3.3</option>
-                  <option>Below 3.0</option>
+                  {GPA_DIMENSION.options.map((o) => (
+                    <option key={o.code} value={o.code}>{o.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>City</Label>
+                  <Label>City <span className="font-normal text-gray-400">(optional)</span></Label>
                   <Input className="mt-1" value={city} onChange={e => setCity(e.target.value)} />
                 </div>
                 <div>
-                  <Label>State</Label>
+                  <Label>State <span className="font-normal text-gray-400">(optional)</span></Label>
                   <Input className="mt-1" value={state} onChange={e => setState(e.target.value)} />
                 </div>
               </div>
@@ -211,9 +262,9 @@ export default function OnboardingPage() {
           <div>
             <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">College preferences</p>
             <h1 className="mt-2 text-3xl font-bold text-gray-900">Where do you want to go?</h1>
-            <p className="mt-2 text-gray-500">Add schools you&apos;re interested in. We&apos;ll match you with mentors from these programs.</p>
+            <p className="mt-2 text-gray-500">Add schools you&apos;re interested in. We&apos;ll prioritize mentors who attend or attended these schools.</p>
             <div className="mt-8">
-              <Label>Dream schools</Label>
+              <Label>Dream schools <span className="font-normal text-gray-400">(optional)</span></Label>
               <div className="mt-2">
                 <TagPicker options={COLLEGES} selected={colleges} onToggle={v => toggleIn(colleges, setColleges, v)} placeholder="Search colleges..." />
               </div>
@@ -223,39 +274,58 @@ export default function OnboardingPage() {
 
         {step === 4 && (
           <div>
-            <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">Identity matching</p>
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">Help us find the right mentor.</h1>
-            <p className="mt-2 text-gray-500">Optional. This helps us match you with mentors who share your background.</p>
-            <div className="mt-8 space-y-5">
-              <div>
-                <Label>Ethnic background <span className="font-normal text-gray-400">(optional)</span></Label>
-                <select className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm" value={ethnicity} onChange={e => setEthnicity(e.target.value)}>
-                  <option value="">Prefer not to say</option>
-                  <option>Asian American</option>
-                  <option>Black / African American</option>
-                  <option>Hispanic / Latino</option>
-                  <option>Native American</option>
-                  <option>White / Caucasian</option>
-                  <option>Middle Eastern / North African</option>
-                  <option>Pacific Islander</option>
-                  <option>Multiracial</option>
-                  <option>Other</option>
-                </select>
-              </div>
-              <div>
-                <Label>Are you a first-generation college student?</Label>
-                <select className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm" value={firstGen} onChange={e => setFirstGen(e.target.value)}>
-                  <option value="">Prefer not to say</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-400">First-gen means neither parent has a 4-year college degree.</p>
-              </div>
+            <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">What you&apos;re looking for</p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900">What do you want in a mentor?</h1>
+            <p className="mt-2 text-gray-500">All optional. Tell us the experiences and paths you&apos;d like your mentor to have, and we&apos;ll prioritize matches.</p>
+            <div className="mt-8 space-y-8">
+              {fitDimensions.map(renderDim)}
             </div>
           </div>
         )}
 
         {step === 5 && (
+          <div>
+            <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">Your background</p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900">Tell us about yourself.</h1>
+            <p className="mt-2 text-gray-500">Everything here is optional. It helps us match you with mentors who&apos;ve shared your experiences.</p>
+            <div className="mt-8 space-y-8">
+              {backgroundDimensions.map(renderDim)}
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
+          <div>
+            <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">Identity</p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900">A few sensitive questions.</h1>
+            <p className="mt-2 text-gray-500">
+              Optional — used only for matching, never shown publicly. You can skip this whole section.
+            </p>
+
+            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-md border border-gray-200 bg-white p-4">
+              <input
+                type="checkbox"
+                checked={identity.consent}
+                onChange={(e) =>
+                  setIdentity((s) => ({ ...s, consent: e.target.checked }))
+                }
+                className="mt-0.5 h-4 w-4 cursor-pointer accent-[#7A60E4]"
+              />
+              <span className="text-sm text-gray-700">
+                I&apos;m okay sharing this for matching. It stays private and is
+                never shown on my profile or to mentors directly.
+              </span>
+            </label>
+
+            {identity.consent && (
+              <div className="mt-8 space-y-8">
+                {sensitiveDimensions.map(renderDim)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 7 && (
           <div>
             <p className="text-sm font-medium uppercase tracking-wider text-[#7A60E4]">About you</p>
             <h1 className="mt-2 text-3xl font-bold text-gray-900">Introduce yourself to mentors.</h1>

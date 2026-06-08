@@ -30,6 +30,23 @@ import { cn } from '@/lib/utils'
 import { normalizeLinkedinUrl } from '@/lib/linkedin'
 import type { CollegeRecord, MajorRecord } from '@/lib/data/colleges-majors'
 import { MENTOR_SPECIALTIES } from '@/lib/constants'
+import {
+  backgroundDimensions,
+  fitDimensions,
+  sensitiveDimensions,
+  MENTEE_PREFERENCES_DIMENSION,
+  getDimension,
+  type Dimension,
+} from '@/lib/identity-taxonomy'
+import { DimensionField, type Role } from '@/components/onboarding/identity-fields'
+import {
+  hydrateIdentityState,
+  serializeIdentity,
+  type IdentityState,
+} from '@/lib/onboarding-identity'
+
+const ROLE: Role = 'mentor'
+const ACADEMIC_IDENTITY = getDimension('academic_identity')!
 
 const TOTAL_STEPS = 5
 
@@ -81,41 +98,6 @@ const MOTIVATIONS = [
   'Want to be paid or provided a stipend (future)',
 ]
 
-const ETHNICITIES = [
-  'American Indian or Alaska Native',
-  'Asian or Asian American',
-  'Black or African American',
-  'Hispanic or Latino/a/x',
-  'Middle Eastern or North African',
-  'Native Hawaiian or Pacific Islander',
-  'White',
-  'Prefer to self-describe',
-]
-
-const GENDER_OPTIONS = [
-  'Female',
-  'Male',
-  'Non-binary',
-  'Prefer to self-describe',
-  'Prefer not to say',
-]
-
-const FIRST_GEN_OPTIONS = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'no', label: 'No' },
-  { value: 'unspecified', label: 'Prefer not to say' },
-]
-
-const MENTEE_PREFERENCES = [
-  'First-generation students',
-  'Students from low-income backgrounds',
-  'Students of color',
-  'LGBTQ+ students',
-  'Students from rural areas',
-  'International students',
-  'Open to mentoring all students',
-]
-
 const BIO_MAX = 280
 
 export type ExistingProfile = {
@@ -134,12 +116,7 @@ export type ExistingProfile = {
   max_mentees: number | null
   commitment: string | null
   motivations: string[] | null
-  identity_json: {
-    gender?: string
-    ethnicities?: string[]
-    first_gen?: string
-    mentee_preferences?: string[]
-  } | null
+  identity_json: Record<string, unknown> | null
   status: string | null
   submitted_at: string | null
 }
@@ -238,17 +215,8 @@ export default function MentorOnboardingForm({
   )
   const [tags, setTags] = useState<string[]>(existingProfile?.tags ?? [])
 
-  const [gender, setGender] = useState(
-    existingProfile?.identity_json?.gender ?? ''
-  )
-  const [ethnicities, setEthnicities] = useState<string[]>(
-    existingProfile?.identity_json?.ethnicities ?? []
-  )
-  const [firstGen, setFirstGen] = useState(
-    existingProfile?.identity_json?.first_gen ?? ''
-  )
-  const [menteePreferences, setMenteePreferences] = useState<string[]>(
-    existingProfile?.identity_json?.mentee_preferences ?? []
+  const [identity, setIdentity] = useState<IdentityState>(() =>
+    hydrateIdentityState(ROLE, existingProfile?.identity_json ?? null)
   )
 
   const [timezone, setTimezone] = useState(
@@ -312,7 +280,22 @@ export default function MentorOnboardingForm({
     bio.trim().length >= 30 &&
     tags.length >= 1
 
-  const canContinueStep3 = true
+  // Academic identity is REQUIRED for mentors (drives matching).
+  const academicIdentity = identity.answers['academic_identity']
+  const canContinueStep3 =
+    Array.isArray(academicIdentity) && academicIdentity.length > 0
+
+  const valueFor = (dim: Dimension): string[] | string =>
+    identity.answers[dim.dimension_key] ?? (dim.select === 'multi' ? [] : '')
+
+  const setAnswer = (key: string, next: string[] | string) =>
+    setIdentity((s) => ({ ...s, answers: { ...s.answers, [key]: next } }))
+
+  const setSelfText = (key: string, v: string) =>
+    setIdentity((s) => ({ ...s, selfText: { ...s.selfText, [key]: v } }))
+
+  const setConsent = (v: boolean) =>
+    setIdentity((s) => ({ ...s, consent: v }))
 
   const canContinueStep4 =
     timezone.length > 0 && timeWindows.length >= 1 && commitment.length > 0
@@ -325,6 +308,8 @@ export default function MentorOnboardingForm({
   const handleSubmit = async () => {
     setError('')
     setSubmitting(true)
+
+    const mentorIdentity = serializeIdentity(ROLE, identity)
 
     try {
       const supabase = createClient()
@@ -387,13 +372,15 @@ export default function MentorOnboardingForm({
             max_mentees: maxMentees,
             commitment,
             motivations,
-            identity_json: {
-              gender: gender || undefined,
-              ethnicities: ethnicities.length > 0 ? ethnicities : undefined,
-              first_gen: firstGen || undefined,
-              mentee_preferences:
-                menteePreferences.length > 0 ? menteePreferences : undefined,
-            },
+            identity_json: mentorIdentity.identityJson,
+            // Promoted matching columns (mentor attributes, incl. pair sides).
+            race_ethnicity: mentorIdentity.promoted.race_ethnicity ?? [],
+            academic_identity: mentorIdentity.promoted.academic_identity ?? [],
+            first_gen: mentorIdentity.promoted.first_gen ?? [],
+            college_experience:
+              mentorIdentity.promoted.college_experience ?? [],
+            career_aspirations:
+              mentorIdentity.promoted.career_aspirations ?? [],
             safety_acks: {
               minors: { accepted: true, at: new Date().toISOString() },
               recording: { accepted: true, at: new Date().toISOString() },
@@ -492,16 +479,11 @@ export default function MentorOnboardingForm({
 
         {step === 3 && (
           <Step3Identity
-            gender={gender}
-            setGender={setGender}
-            ethnicities={ethnicities}
-            toggleEthnicity={(e) => toggle(ethnicities, setEthnicities, e)}
-            firstGen={firstGen}
-            setFirstGen={setFirstGen}
-            menteePreferences={menteePreferences}
-            toggleMenteePref={(p) =>
-              toggle(menteePreferences, setMenteePreferences, p)
-            }
+            identity={identity}
+            valueFor={valueFor}
+            setAnswer={setAnswer}
+            setSelfText={setSelfText}
+            setConsent={setConsent}
           />
         )}
 
@@ -912,104 +894,85 @@ function Step2PublicProfile({
 }
 
 function Step3Identity({
-  gender,
-  setGender,
-  ethnicities,
-  toggleEthnicity,
-  firstGen,
-  setFirstGen,
-  menteePreferences,
-  toggleMenteePref,
+  identity,
+  valueFor,
+  setAnswer,
+  setSelfText,
+  setConsent,
 }: {
-  gender: string
-  setGender: (v: string) => void
-  ethnicities: string[]
-  toggleEthnicity: (e: string) => void
-  firstGen: string
-  setFirstGen: (v: string) => void
-  menteePreferences: string[]
-  toggleMenteePref: (p: string) => void
+  identity: IdentityState
+  valueFor: (dim: Dimension) => string[] | string
+  setAnswer: (key: string, next: string[] | string) => void
+  setSelfText: (key: string, v: string) => void
+  setConsent: (v: boolean) => void
 }) {
+  const renderDim = (dim: Dimension) => (
+    <DimensionField
+      key={dim.dimension_key}
+      dim={dim}
+      role={ROLE}
+      value={valueFor(dim)}
+      onChange={(next) => setAnswer(dim.dimension_key, next)}
+      selfDescribeText={identity.selfText[dim.dimension_key] ?? ''}
+      onSelfDescribeTextChange={(v) => setSelfText(dim.dimension_key, v)}
+    />
+  )
+
   return (
     <div>
       <StepHeading
         eyebrow="Identity"
         title="Help us match you with the right students."
-        description="Everything on this step is optional. We use it to make better matches when students request mentors who share their background."
+        description="Academic identity is required so we can match on your field. Everything else is optional — we use it to make better matches when students look for mentors who share their background."
       />
 
       <div className="space-y-8">
-        <div className="space-y-2">
-          <Label htmlFor="gender">Gender identity</Label>
-          <Select
-            value={gender || '__none__'}
-            onValueChange={(v) => setGender(v === '__none__' ? '' : v)}
-          >
-            <SelectTrigger id="gender">
-              <SelectValue placeholder="Prefer not to say" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Prefer not to say</SelectItem>
-              {GENDER_OPTIONS.filter((g) => g !== 'Prefer not to say').map(
-                (g) => (
-                  <SelectItem key={g} value={g}>
-                    {g}
-                  </SelectItem>
-                )
-              )}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Academic identity first — the one required field on this step. */}
+        {renderDim(ACADEMIC_IDENTITY)}
+
+        {backgroundDimensions
+          .filter((d) => d.dimension_key !== 'academic_identity')
+          .map(renderDim)}
 
         <div className="space-y-2">
-          <Label>Race / ethnicity</Label>
-          <p className="text-[12px] text-text-3">
-            Select all that apply.
+          <p className="text-[13px] font-semibold text-text">
+            Your college experience &amp; path
           </p>
-          <div className="flex flex-wrap gap-2">
-            {ETHNICITIES.map((e) => (
-              <Chip
-                key={e}
-                label={e}
-                selected={ethnicities.includes(e)}
-                onClick={() => toggleEthnicity(e)}
-              />
-            ))}
-          </div>
+          <p className="text-[12px] text-text-3">
+            What you lived through. Students who want a mentor with these
+            experiences will match to you.
+          </p>
+          <div className="space-y-8 pt-2">{fitDimensions.map(renderDim)}</div>
         </div>
 
-        <div className="space-y-2">
-          <Label>First-generation college student</Label>
-          <p className="text-[12px] text-text-3">
-            Your parents didn&apos;t complete a 4-year college degree.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {FIRST_GEN_OPTIONS.map((o) => (
-              <Chip
-                key={o.value}
-                label={o.label}
-                selected={firstGen === o.value}
-                onClick={() => setFirstGen(o.value)}
-              />
-            ))}
-          </div>
-        </div>
+        {renderDim(MENTEE_PREFERENCES_DIMENSION)}
 
-        <div className="space-y-2">
-          <Label>Students you&apos;d especially like to support</Label>
-          <p className="text-[12px] text-text-3">
-            We use this to weight matching, not as a hard filter. Optional.
+        {/* Consent-gated sensitive block. */}
+        <div className="space-y-3 rounded-[var(--radius-sm)] border border-border bg-surface-2 p-4">
+          <p className="text-[13px] font-semibold text-text">
+            Sensitive identity (optional)
           </p>
-          <div className="flex flex-wrap gap-2">
-            {MENTEE_PREFERENCES.map((p) => (
-              <Chip
-                key={p}
-                label={p}
-                selected={menteePreferences.includes(p)}
-                onClick={() => toggleMenteePref(p)}
-              />
-            ))}
-          </div>
+          <p className="text-[12px] text-text-3">
+            Optional — used only for matching, never shown publicly. You can
+            skip this whole section.
+          </p>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={identity.consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 cursor-pointer accent-[color:var(--primary)]"
+            />
+            <span className="text-[13px] text-text-2">
+              I&apos;m okay sharing this for matching. It stays private and is
+              never shown on my public profile.
+            </span>
+          </label>
+          {identity.consent && (
+            <div className="space-y-8 pt-2">
+              {sensitiveDimensions.map(renderDim)}
+            </div>
+          )}
         </div>
       </div>
     </div>

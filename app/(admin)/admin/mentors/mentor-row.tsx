@@ -20,9 +20,31 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { updateMentorReviewStatus } from '@/lib/actions/mentor-review-actions'
 import { MIN_MENTOR_MATCH_SLOTS } from '@/lib/matching/mentor-eligibility'
+import { labelsForCodes, labelForCode } from '@/lib/identity-taxonomy'
 
 import MentorEditDialog from './mentor-edit-dialog'
 import type { MentorReviewItem } from './types'
+
+// Resolve a dimension's stored value (codes, or legacy label strings) into a
+// human-readable, comma-joined string for the admin detail view. Falls back to
+// a legacy identity_json key when the new code-based key is absent.
+function readDim(
+  identity: Record<string, unknown> | null | undefined,
+  dimensionKey: string,
+  legacyKey?: string
+): string {
+  if (!identity) return ''
+  const raw = identity[dimensionKey] ?? (legacyKey ? identity[legacyKey] : undefined)
+  if (Array.isArray(raw)) {
+    const codes = raw.filter((x): x is string => typeof x === 'string')
+    if (codes.length === 0) return ''
+    return labelsForCodes(dimensionKey, codes).join(', ')
+  }
+  if (typeof raw === 'string' && raw.length > 0) {
+    return labelForCode(dimensionKey, raw)
+  }
+  return ''
+}
 
 const TIME_WINDOW_LABELS: Record<string, string> = {
   weekday_morning: 'Weekday mornings',
@@ -242,38 +264,48 @@ export default function MentorReviewRow({
                         .join(', ')}
                     />
                   )}
-                {mentor.identity_json?.gender && (
+                {readDim(mentor.identity_json, 'academic_identity') && (
+                  <DetailRow
+                    label="Academic identity"
+                    value={readDim(mentor.identity_json, 'academic_identity')}
+                  />
+                )}
+                {readDim(mentor.identity_json, 'gender_identity', 'gender') && (
                   <DetailRow
                     label="Gender"
-                    value={mentor.identity_json.gender}
+                    value={readDim(mentor.identity_json, 'gender_identity', 'gender')}
                   />
                 )}
-                {mentor.identity_json?.ethnicities &&
-                  mentor.identity_json.ethnicities.length > 0 && (
-                    <DetailRow
-                      label="Race / ethnicity"
-                      value={mentor.identity_json.ethnicities.join(', ')}
-                    />
-                  )}
-                {mentor.identity_json?.first_gen && (
+                {readDim(mentor.identity_json, 'race_ethnicity', 'ethnicities') && (
+                  <DetailRow
+                    label="Race / ethnicity"
+                    value={readDim(mentor.identity_json, 'race_ethnicity', 'ethnicities')}
+                  />
+                )}
+                {readDim(mentor.identity_json, 'first_gen') && (
                   <DetailRow
                     label="First-gen"
-                    value={
-                      mentor.identity_json.first_gen === 'yes'
-                        ? 'Yes'
-                        : mentor.identity_json.first_gen === 'no'
-                          ? 'No'
-                          : 'Prefer not to say'
-                    }
+                    value={readDim(mentor.identity_json, 'first_gen')}
                   />
                 )}
-                {mentor.identity_json?.mentee_preferences &&
-                  mentor.identity_json.mentee_preferences.length > 0 && (
-                    <DetailRow
-                      label="Wants to support"
-                      value={mentor.identity_json.mentee_preferences.join(', ')}
-                    />
-                  )}
+                {readDim(mentor.identity_json, 'college_experience') && (
+                  <DetailRow
+                    label="College experience"
+                    value={readDim(mentor.identity_json, 'college_experience')}
+                  />
+                )}
+                {readDim(mentor.identity_json, 'career_aspirations') && (
+                  <DetailRow
+                    label="Career path"
+                    value={readDim(mentor.identity_json, 'career_aspirations')}
+                  />
+                )}
+                {readDim(mentor.identity_json, 'mentee_preferences') && (
+                  <DetailRow
+                    label="Wants to support"
+                    value={readDim(mentor.identity_json, 'mentee_preferences')}
+                  />
+                )}
                 {mentor.motivations && mentor.motivations.length > 0 && (
                   <DetailRow
                     label="Motivations"

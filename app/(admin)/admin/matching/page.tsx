@@ -9,9 +9,19 @@ import { createClient } from '@/lib/supabase/server'
 import { isMentorAssignableForMatch } from '@/lib/matching/mentor-eligibility'
 import { normalizeOptIns } from '@/lib/scheduling/slots'
 
-import MatchRow, { type StudentPendingRequest } from './match-row'
+import MatchRow, {
+  type StudentPendingRequest,
+  type MatchMentee,
+  type MatchMentorOption,
+} from './match-row'
 
 export const dynamic = 'force-dynamic'
+
+/** Coerce a jsonb / text[] value into a clean string array (defensive). */
+function asStrArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((v): v is string => typeof v === 'string')
+}
 
 type StudentRow = {
   user_id: string
@@ -27,20 +37,11 @@ type StudentRow = {
   careers: string[]
   created_at: string
   pending_requests: StudentPendingRequest[]
+  /** Canonical-taxonomy data the match-strength scorer consumes. */
+  match: MatchMentee
 }
 
-type MentorOption = {
-  user_id: string
-  full_name: string
-  university: string
-  major: string | null
-  active_mentees_count: number
-  max_mentees: number
-  rating: number
-  availability_slot_count: number
-  claim_status: string | null
-  assignable: boolean
-}
+type MentorOption = MatchMentorOption
 
 export default async function AdminMatchingPage({
   searchParams,
@@ -74,13 +75,13 @@ export default async function AdminMatchingPage({
       supabase
         .from('student_profiles')
         .select(
-          'user_id, grade, city, state, interests, colleges, careers, matched_mentor_id, created_at'
+          'user_id, grade, city, state, interests, colleges, careers, matched_mentor_id, created_at, academic_identity, first_gen, race_ethnicity, fit_preferences'
         )
         .order('created_at', { ascending: false }),
       supabase
         .from('mentor_profiles')
         .select(
-          'user_id, university, major, active_mentees_count, max_mentees, rating, availability_slots, status, claim_status, claim_email_sent_at'
+          'user_id, university, major, active_mentees_count, max_mentees, rating, availability_slots, status, claim_status, claim_email_sent_at, academic_identity, first_gen, race_ethnicity, college_experience, career_aspirations'
         )
         .eq('status', 'approved'),
       supabase.from('users').select('id, full_name, email, role'),
@@ -173,6 +174,10 @@ export default async function AdminMatchingPage({
     })
     .map((row) => {
       const u = userById.get(row.user_id)
+      const fitPreferences = (row.fit_preferences ?? {}) as Record<
+        string,
+        unknown
+      >
       return {
         user_id: row.user_id,
         full_name: u?.full_name ?? '',
@@ -189,6 +194,17 @@ export default async function AdminMatchingPage({
         careers: row.careers ?? [],
         created_at: row.created_at,
         pending_requests: pendingByStudent.get(row.user_id) ?? [],
+        match: {
+          academic_identity: asStrArray(row.academic_identity),
+          first_gen: asStrArray(row.first_gen),
+          race_ethnicity: asStrArray(row.race_ethnicity),
+          fit_preferences: {
+            career_pref: asStrArray(fitPreferences.career_pref),
+            college_experience_pref: asStrArray(
+              fitPreferences.college_experience_pref
+            ),
+          },
+        },
       }
     })
 
@@ -210,6 +226,13 @@ export default async function AdminMatchingPage({
         claimStatus: m.claim_status,
         availabilitySlotCount,
       }),
+      match: {
+        academic_identity: asStrArray(m.academic_identity),
+        first_gen: asStrArray(m.first_gen),
+        race_ethnicity: asStrArray(m.race_ethnicity),
+        college_experience: asStrArray(m.college_experience),
+        career_aspirations: asStrArray(m.career_aspirations),
+      },
     }
   })
 

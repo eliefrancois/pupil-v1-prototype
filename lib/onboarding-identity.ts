@@ -42,15 +42,21 @@ function dimsForRole(role: Role): Dimension[] {
   })
 }
 
+/** The self-describe free text for a dim, or null when not applicable. */
+function selfDescribeText(dim: Dimension, state: IdentityState): string | null {
+  const selected = asArray(state.answers[dim.dimension_key])
+  if (!selected.includes(SELF_DESCRIBE)) return null
+  const text = (state.selfText[dim.dimension_key] ?? '').trim()
+  return text ? text : null
+}
+
 /** Write the self-describe free text key when applicable. */
 function applySelfDescribe(
   target: Record<string, unknown>,
   dim: Dimension,
   state: IdentityState
 ) {
-  const selected = asArray(state.answers[dim.dimension_key])
-  if (!selected.includes(SELF_DESCRIBE)) return
-  const text = (state.selfText[dim.dimension_key] ?? '').trim()
+  const text = selfDescribeText(dim, state)
   if (text) target[selfDescribeTextKey(dim.dimension_key)] = text
 }
 
@@ -62,8 +68,9 @@ export interface SerializedIdentity {
   /**
    * Mentee preference keys destined for `student_profiles.fit_preferences`.
    * Empty for the mentor role. `college_list` is merged in by the caller.
+   * Values are code arrays, plus optional self-describe text strings.
    */
-  fitPreferences: Record<string, string[]>
+  fitPreferences: Record<string, string[] | string>
 }
 
 /**
@@ -81,7 +88,7 @@ export function serializeIdentity(
 ): SerializedIdentity {
   const identityJson: Record<string, unknown> = {}
   const promoted: Record<string, string[]> = {}
-  const fitPreferences: Record<string, string[]> = {}
+  const fitPreferences: Record<string, string[] | string> = {}
 
   // Always record the consent decision so we can tell "skipped" from "no data".
   identityJson.sensitive_consent = state.consent
@@ -100,6 +107,11 @@ export function serializeIdentity(
         // Mentee supplies the PREFERENCE half -> fit_preferences.
         if (dim.pair && arr.length > 0) {
           fitPreferences[dim.pair.prefKey] = arr
+          // Self-describe text rides alongside the pref array in
+          // fit_preferences so it round-trips on edit (mentee pair answers
+          // never touch identity_json).
+          const text = selfDescribeText(dim, state)
+          if (text) fitPreferences[selfDescribeTextKey(dim.pair.prefKey)] = text
         }
         // Promoted pair columns stay empty for mentees (their answer is a
         // preference, stored in fit_preferences, not an attribute).
@@ -143,9 +155,12 @@ export function hydrateIdentityState(
   for (const dim of dimsForRole(role)) {
     const key = dim.dimension_key
 
+    const isMenteePair = dim.matchRole === 'pair' && role === 'mentee'
+    const prefKey = dim.pair?.prefKey ?? key
+
     let raw: unknown
-    if (dim.matchRole === 'pair' && role === 'mentee') {
-      raw = fitPreferences?.[dim.pair?.prefKey ?? key]
+    if (isMenteePair) {
+      raw = fitPreferences?.[prefKey]
     } else {
       raw = identityJson[key]
     }
@@ -156,7 +171,11 @@ export function hydrateIdentityState(
       state.answers[key] = raw
     }
 
-    const selfText = identityJson[selfDescribeTextKey(key)]
+    // Mentee pair self-describe text lives in fit_preferences; everything
+    // else lives in identity_json.
+    const selfText = isMenteePair
+      ? fitPreferences?.[selfDescribeTextKey(prefKey)]
+      : identityJson[selfDescribeTextKey(key)]
     if (typeof selfText === 'string' && selfText.length > 0) {
       state.selfText[key] = selfText
     }

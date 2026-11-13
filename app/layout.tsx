@@ -1,17 +1,21 @@
 import type { Metadata } from 'next'
-import { Newsreader } from 'next/font/google'
+import localFont from 'next/font/local'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 
 import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
 
-const newsreader = Newsreader({
-  subsets: ['latin'],
+// Self-hosted: next/font/google intermittently fails Vercel builds when Google
+// returns a font URL without a file extension. These are Google's latin subset files.
+const newsreader = localFont({
+  src: [
+    { path: './fonts/Newsreader-Latin.woff2', weight: '400 600', style: 'normal' },
+    { path: './fonts/Newsreader-Latin-Italic.woff2', weight: '400 600', style: 'italic' },
+  ],
   variable: '--font-newsreader',
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
   display: 'swap',
+  adjustFontFallback: false,
 })
 
 export const metadata: Metadata = {

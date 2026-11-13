@@ -55,7 +55,7 @@ async function loadState(token: string): Promise<PageState> {
        identity_json,
        claim_status,
        claim_token_expires_at,
-       users!inner(email, full_name)`
+       users:users!mentor_profiles_user_id_fkey!inner(email, full_name)`
     )
     .eq('claim_token', token)
     .maybeSingle<{

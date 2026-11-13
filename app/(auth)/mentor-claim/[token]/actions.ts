@@ -136,7 +136,9 @@ export async function regenerateClaimToken(
 
   const { data: profile } = await supabase
     .from('mentor_profiles')
-    .select('user_id, claim_status, users!inner(email)')
+    .select(
+      'user_id, claim_status, users:users!mentor_profiles_user_id_fkey!inner(email)'
+    )
     .eq('claim_token', oldToken)
     .maybeSingle<{
       user_id: string

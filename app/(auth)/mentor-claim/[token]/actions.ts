@@ -1,7 +1,9 @@
 'use server'
 
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import crypto from 'node:crypto'
+
+import { notifyGhostMentorToClaim } from '@/lib/email/notifications'
+import { getSiteUrl } from '@/lib/site-url'
 
 /**
  * The claim flow turns a ghost mentor (imported via CSV with no password,
@@ -120,12 +122,9 @@ export async function claimProfile(
 }
 
 /**
- * Regenerate a fresh 30-day claim token for an expired link. Triggered
- * from the "Request a new link" button on the expired-state UI.
- *
- * We don't expose the email back to the client beyond what they already
- * saw; this just regenerates and (when email sending is wired up) emails
- * them the new link.
+ * Re-opens an expired claim link for another 30 days and emails it to the
+ * mentor. Triggered from the "Send me a new link" button on the expired-state
+ * UI. The token stays the same so links in earlier emails keep working.
  */
 export async function regenerateClaimToken(
   oldToken: string
@@ -137,13 +136,14 @@ export async function regenerateClaimToken(
   const { data: profile } = await supabase
     .from('mentor_profiles')
     .select(
-      'user_id, claim_status, users:users!mentor_profiles_user_id_fkey!inner(email)'
+      'user_id, claim_status, claim_email_attempts, users:users!mentor_profiles_user_id_fkey!inner(email, full_name)'
     )
     .eq('claim_token', oldToken)
     .maybeSingle<{
       user_id: string
       claim_status: string
-      users: { email: string }
+      claim_email_attempts: number
+      users: { email: string; full_name: string }
     }>()
 
   if (!profile) return { ok: false, error: 'Link not recognized.' }
@@ -154,7 +154,10 @@ export async function regenerateClaimToken(
     }
   }
 
-  const newToken = crypto.randomBytes(24).toString('base64url')
+  if (profile.claim_status !== 'ghost' && profile.claim_status !== 'claim_pending') {
+    return { ok: false, error: 'This link is no longer active.' }
+  }
+
   const newExpiry = new Date(
     Date.now() + 30 * 24 * 60 * 60 * 1000
   ).toISOString()
@@ -162,20 +165,20 @@ export async function regenerateClaimToken(
   const { error } = await supabase
     .from('mentor_profiles')
     .update({
-      claim_token: newToken,
       claim_token_expires_at: newExpiry,
       claim_email_sent_at: new Date().toISOString(),
+      claim_email_attempts: profile.claim_email_attempts + 1,
     })
     .eq('user_id', profile.user_id)
 
   if (error) return { ok: false, error: 'Could not refresh your link.' }
 
-  // TODO(emails): send via Resend once RESEND_API_KEY is configured.
-  // For now, log so we can hand-deliver during testing.
-  console.log(
-    `[claim] regenerated token for ${profile.users.email}: ` +
-      `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/mentor-claim/${newToken}`
-  )
+  await notifyGhostMentorToClaim({
+    mentorEmail: profile.users.email,
+    mentorName: profile.users.full_name,
+    claimUrl: `${getSiteUrl()}/mentor-claim/${oldToken}`,
+    studentName: null,
+  })
 
   return { ok: true, email: profile.users.email }
 }

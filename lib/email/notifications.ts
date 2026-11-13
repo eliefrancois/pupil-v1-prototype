@@ -11,6 +11,10 @@
 import { render } from '@react-email/render'
 
 import MentorClaimEmail from '@/emails/mentor-claim'
+import MentorClaimCampaignEmail, {
+  claimCampaignSubject,
+  type ClaimCampaignStep,
+} from '@/emails/mentor-claim-campaign'
 import MatchRequestForwardedEmail from '@/emails/match-request-forwarded'
 import MatchRequestDeclinedEmail from '@/emails/match-request-declined'
 import MatchRequestAdminEmail from '@/emails/match-request-admin'
@@ -125,6 +129,39 @@ export async function notifyGhostMentorToClaim(
   })
 }
 
+export interface ClaimCampaignNotification {
+  step: ClaimCampaignStep
+  mentorEmail: string
+  mentorName: string
+  claimUrl: string
+  optOutUrl: string
+  hideDate: string
+}
+
+/** One of the three scheduled claim reminders sent to imported mentors. */
+export async function notifyGhostMentorClaimCampaign(
+  payload: ClaimCampaignNotification
+): Promise<boolean> {
+  const node = MentorClaimCampaignEmail({
+    step: payload.step,
+    mentorName: payload.mentorName,
+    claimUrl: payload.claimUrl,
+    optOutUrl: payload.optOutUrl,
+    hideDate: payload.hideDate,
+  })
+
+  return deliver({
+    to: payload.mentorEmail,
+    subject: claimCampaignSubject(payload.step, firstName(payload.mentorName)),
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: `mentor_claim_campaign_${payload.step}`,
+    from: `Dario at Pupil <${ADMIN_EMAIL}>`,
+    replyTo: ADMIN_EMAIL,
+    headers: { 'List-Unsubscribe': `<${payload.optOutUrl}>` },
+  })
+}
+
 /** Sent to student when admin assigns a mentor. */
 export async function notifyStudentMatched(payload: {
   studentEmail: string
@@ -227,9 +264,21 @@ interface DeliverArgs {
   html: string
   text: string
   tag: string
+  from?: string
+  replyTo?: string
+  headers?: Record<string, string>
 }
 
-async function deliver({ to, subject, html, text, tag }: DeliverArgs) {
+async function deliver({
+  to,
+  subject,
+  html,
+  text,
+  tag,
+  from = 'Pupil <hello@getpupil.com>',
+  replyTo,
+  headers,
+}: DeliverArgs): Promise<boolean> {
   if (!RESEND_KEY) {
     // No key configured — log the plain-text version so we can audit what
     // would have been sent during local testing. The full HTML is preview-
@@ -240,7 +289,7 @@ async function deliver({ to, subject, html, text, tag }: DeliverArgs) {
         .map((l) => `    ${l}`)
         .join('\n')}\n`
     )
-    return
+    return true
   }
 
   try {
@@ -251,19 +300,24 @@ async function deliver({ to, subject, html, text, tag }: DeliverArgs) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Pupil <hello@getpupil.com>',
+        from,
         to,
         subject,
         html,
         text,
         tags: [{ name: 'category', value: tag }],
+        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(headers ? { headers } : {}),
       }),
     })
     if (!res.ok) {
       console.error(`[email:${tag}] Resend HTTP ${res.status}:`, await res.text())
+      return false
     }
+    return true
   } catch (err) {
     console.error(`[email:${tag}] send failed:`, err)
+    return false
   }
 }
 

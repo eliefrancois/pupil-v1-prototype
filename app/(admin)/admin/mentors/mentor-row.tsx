@@ -80,7 +80,8 @@ export default function MentorReviewRow({
   const isGhost = mentor.claim_status === 'ghost'
   // Imported profiles that were hidden never claimed an account; reactivating
   // would list them as approved mentors, so they can only return by claiming.
-  const isHiddenFromDirectory = mentor.claim_status === null
+  const isHiddenFromDirectory =
+    mentor.claim_status === null || mentor.claim_status === 'unreachable'
 
   const initials = (mentor.full_name || mentor.email)
     .split(' ')

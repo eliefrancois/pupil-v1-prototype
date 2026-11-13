@@ -72,7 +72,7 @@ export default function MentorClaimCampaignEmail({
           <Text style={bodyText}>
             Students on Pupil book 30-minute video calls with college students
             who went through the process recently. You choose how many students
-            you take and when you&apos;re free, and sessions are paid.
+            you take and when you&apos;re free.
           </Text>
         </>
       )}
@@ -82,7 +82,7 @@ export default function MentorClaimCampaignEmail({
           Bumping this in case it got buried. We made you a draft mentor
           profile on Pupil from the survey you filled out in 2023. High
           schoolers can find you on our mentor directory, and claiming it lets
-          you set your availability and start taking paid sessions.
+          you set your availability and start mentoring.
         </Text>
       )}
 

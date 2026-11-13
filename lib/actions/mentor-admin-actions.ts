@@ -119,6 +119,18 @@ export async function updateMentorProfile(
 
   if (profileError) return { ok: false, error: profileError.message }
 
+  // Ghost profiles are public regardless of status, so pausing or rejecting
+  // one has to clear the ghost flag to take it off the directory.
+  if (status === 'paused' || status === 'rejected') {
+    const { error: ghostError } = await supabase
+      .from('mentor_profiles')
+      .update({ claim_status: null })
+      .eq('user_id', input.mentorUserId)
+      .eq('claim_status', 'ghost')
+
+    if (ghostError) return { ok: false, error: ghostError.message }
+  }
+
   const { error: userError } = await supabase
     .from('users')
     .update({ full_name: fullName })

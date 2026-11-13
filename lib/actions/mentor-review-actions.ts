@@ -80,3 +80,36 @@ export async function updateMentorReviewStatus({
   revalidatePath('/mentors')
   return { ok: true }
 }
+
+// Pausing alone does not remove a ghost from public_mentor_profiles (the view
+// also admits claim_status = 'ghost'), so the ghost flag must be cleared too.
+export async function hideMentorFromDirectory({
+  mentorUserId,
+}: {
+  mentorUserId: string
+}): Promise<Result> {
+  const auth = await ensureAdmin()
+  if (!auth.ok) return auth
+  const { supabase, adminId } = auth
+
+  const { data: updated, error } = await supabase
+    .from('mentor_profiles')
+    .update({
+      status: 'paused',
+      claim_status: null,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: adminId,
+    })
+    .eq('user_id', mentorUserId)
+    .select('user_id')
+
+  if (error) return { ok: false, error: error.message }
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: 'Mentor profile not found.' }
+  }
+
+  revalidatePath('/admin/mentors')
+  revalidatePath('/mentors')
+  revalidatePath(`/mentors/${mentorUserId}`)
+  return { ok: true }
+}

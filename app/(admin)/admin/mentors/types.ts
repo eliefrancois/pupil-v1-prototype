@@ -15,6 +15,7 @@ export type MentorReviewItem = {
   sessions_count: number
   rating: number | null
   status: 'pending' | 'approved' | 'rejected' | 'paused'
+  claim_status: 'ghost' | 'claim_pending' | 'claimed' | 'unreachable' | null
   submitted_at: string | null
   reviewed_at: string | null
   review_notes: string | null

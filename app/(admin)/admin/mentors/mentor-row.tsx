@@ -18,7 +18,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { updateMentorReviewStatus } from '@/lib/actions/mentor-review-actions'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  hideMentorFromDirectory,
+  updateMentorReviewStatus,
+} from '@/lib/actions/mentor-review-actions'
 import { MIN_MENTOR_MATCH_SLOTS } from '@/lib/matching/mentor-eligibility'
 import { labelsForCodes, labelForCode } from '@/lib/identity-taxonomy'
 
@@ -67,6 +75,12 @@ export default function MentorReviewRow({
   const [rejectNotes, setRejectNotes] = useState('')
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [confirmingHide, setConfirmingHide] = useState(false)
+
+  const isGhost = mentor.claim_status === 'ghost'
+  // Imported profiles that were hidden never claimed an account; reactivating
+  // would list them as approved mentors, so they can only return by claiming.
+  const isHiddenFromDirectory = mentor.claim_status === null
 
   const initials = (mentor.full_name || mentor.email)
     .split(' ')
@@ -111,6 +125,30 @@ export default function MentorReviewRow({
 
   const handleReject = async () => {
     await updateStatus('rejected', rejectNotes.trim() || undefined)
+  }
+
+  const handleHide = async () => {
+    setBusy('hide')
+    setError('')
+    try {
+      const result = await hideMentorFromDirectory({
+        mentorUserId: mentor.user_id,
+      })
+
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+
+      setConfirmingHide(false)
+      router.refresh()
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Something went wrong. Try again.'
+      )
+    } finally {
+      setBusy(null)
+    }
   }
 
   const statusBadge = (() => {
@@ -163,6 +201,20 @@ export default function MentorReviewRow({
                 {mentor.full_name || '(no name)'}
               </p>
               {statusBadge}
+              {isGhost && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0} className="inline-flex">
+                      <Badge variant="outline">Public, unclaimed</Badge>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Listed on the public mentor directory because this profile
+                    was imported and never claimed, regardless of its review
+                    status. Use Hide from directory to take it down.
+                  </TooltipContent>
+                </Tooltip>
+              )}
               {availabilityBadge}
             </div>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[13px] text-text-2">
@@ -408,6 +460,42 @@ export default function MentorReviewRow({
           </div>
         )}
 
+        {confirmingHide && (
+          <div className="mt-4 rounded-[var(--radius-sm)] border border-border bg-surface p-3">
+            <p className="text-[13px] text-text">
+              Take {mentor.full_name || 'this mentor'} off the public directory?
+            </p>
+            <p className="mt-1 text-[12px] text-text-2">
+              Sets them to Paused and clears the unclaimed flag. No email is
+              sent.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmingHide(false)}
+                disabled={busy === 'hide'}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleHide}
+                disabled={busy === 'hide'}
+              >
+                {busy === 'hide' ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Hiding
+                  </>
+                ) : (
+                  'Confirm hide'
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {error && (
           <p className="mt-2 text-[12px] text-[#B91C1C]">{error}</p>
         )}
@@ -425,17 +513,19 @@ export default function MentorReviewRow({
                 ) : null}
                 Approve
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowRejectInput((s) => !s)}
-                disabled={!!busy}
-              >
-                Reject
-              </Button>
+              {!isGhost && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowRejectInput((s) => !s)}
+                  disabled={!!busy}
+                >
+                  Reject
+                </Button>
+              )}
             </>
           )}
-          {mentor.status === 'approved' && (
+          {mentor.status === 'approved' && !isGhost && (
             <>
               <Button
                 size="sm"
@@ -459,7 +549,7 @@ export default function MentorReviewRow({
               </Button>
             </>
           )}
-          {mentor.status === 'paused' && (
+          {mentor.status === 'paused' && !isHiddenFromDirectory && (
             <Button
               size="sm"
               onClick={() => updateStatus('approved')}
@@ -482,6 +572,17 @@ export default function MentorReviewRow({
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : null}
               Move back to pending
+            </Button>
+          )}
+          {isGhost && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmingHide((s) => !s)}
+              disabled={!!busy}
+              className="text-[#B91C1C] hover:bg-[rgba(239,68,68,0.06)]"
+            >
+              Hide from directory
             </Button>
           )}
           <div className="ml-auto flex items-center gap-3">

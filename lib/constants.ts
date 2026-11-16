@@ -71,6 +71,7 @@ export const NAV_MENTOR: NavItem[] = [
 
 export const NAV_ADMIN: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/admin", icon: "Home" },
+  { id: "usage", label: "Usage", href: "/admin/usage", icon: "BarChart" },
   { id: "matching", label: "Matching Queue", href: "/admin/matching", icon: "Users" },
   { id: "mentors", label: "Mentors", href: "/admin/mentors", icon: "GraduationCap" },
   { id: "mentorPhotos", label: "Ghost setup", href: "/admin/mentor-photos", icon: "Image" },

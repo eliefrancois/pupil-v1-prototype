@@ -23,6 +23,7 @@ import MenteeFirstMessageEmail from '@/emails/mentee-first-message'
 import EligibilityCounselorEmail from '@/emails/eligibility-counselor'
 import MentorAssignedEmail from '@/emails/mentor-assigned'
 import MentorApprovedEmail from '@/emails/mentor-approved'
+import ReminderEmail from '@/emails/reminder'
 
 import { getSiteUrl } from '@/lib/site-url'
 
@@ -319,6 +320,69 @@ export async function notifyCounselorOfEligibilityApplication(payload: {
 }
 
 // ---------------------------------------------------------------------------
+// Lifecycle reminders
+// ---------------------------------------------------------------------------
+
+export interface ReminderNotification {
+  to: string
+  cc?: string[]
+  tag: string
+  subject: string
+  preview: string
+  heading: string
+  paragraphs: string[]
+  ctaLabel: string
+  ctaUrl: string
+  unsubscribeUrl: string
+  /** POST target for Gmail/Yahoo one-click unsubscribe. */
+  oneClickUnsubscribeUrl: string
+}
+
+/** A reminder email from Dario with one-click unsubscribe headers. */
+export async function notifyReminder(payload: ReminderNotification): Promise<DeliveryResult> {
+  const node = ReminderEmail({
+    preview: payload.preview,
+    heading: payload.heading,
+    paragraphs: payload.paragraphs,
+    ctaLabel: payload.ctaLabel,
+    ctaUrl: payload.ctaUrl,
+    unsubscribeUrl: payload.unsubscribeUrl,
+  })
+
+  return send({
+    to: payload.to,
+    cc: payload.cc,
+    subject: payload.subject,
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: payload.tag,
+    from: `Dario at Pupil <${ADMIN_EMAIL}>`,
+    replyTo: ADMIN_EMAIL,
+    headers: {
+      'List-Unsubscribe': `<${payload.oneClickUnsubscribeUrl}>, <mailto:${ADMIN_EMAIL}?subject=unsubscribe>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+  })
+}
+
+/** Plain-text render of a reminder, for previews and the admin dry-run view. */
+export async function renderReminderText(
+  payload: Omit<ReminderNotification, 'to' | 'cc' | 'tag' | 'oneClickUnsubscribeUrl'>
+): Promise<string> {
+  return render(
+    ReminderEmail({
+      preview: payload.preview,
+      heading: payload.heading,
+      paragraphs: payload.paragraphs,
+      ctaLabel: payload.ctaLabel,
+      ctaUrl: payload.ctaUrl,
+      unsubscribeUrl: payload.unsubscribeUrl,
+    }),
+    { plainText: true }
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Delivery shim
 // ---------------------------------------------------------------------------
 
@@ -334,7 +398,20 @@ interface DeliverArgs {
   headers?: Record<string, string>
 }
 
-async function deliver({
+export interface DeliveryResult {
+  ok: boolean
+  error?: string
+  /** Resend refused the address (suppression list, prior bounce or complaint). */
+  undeliverable?: boolean
+}
+
+const UNDELIVERABLE_PATTERN = /suppress|bounce|complain|blocked|invalid.*(recipient|to)/i
+
+async function deliver(args: DeliverArgs): Promise<boolean> {
+  return (await send(args)).ok
+}
+
+async function send({
   to,
   cc,
   subject,
@@ -344,7 +421,7 @@ async function deliver({
   from = 'Pupil <hello@getpupil.com>',
   replyTo,
   headers,
-}: DeliverArgs): Promise<boolean> {
+}: DeliverArgs): Promise<DeliveryResult> {
   if (!RESEND_KEY) {
     // No key configured — log the plain-text version so we can audit what
     // would have been sent during local testing. The full HTML is preview-
@@ -357,7 +434,7 @@ async function deliver({
         .map((l) => `    ${l}`)
         .join('\n')}\n`
     )
-    return true
+    return { ok: true }
   }
 
   try {
@@ -380,13 +457,18 @@ async function deliver({
       }),
     })
     if (!res.ok) {
-      console.error(`[email:${tag}] Resend HTTP ${res.status}:`, await res.text())
-      return false
+      const body = await res.text()
+      console.error(`[email:${tag}] Resend HTTP ${res.status}:`, body)
+      return {
+        ok: false,
+        error: `HTTP ${res.status}: ${body.slice(0, 300)}`,
+        undeliverable: res.status >= 400 && res.status < 500 && UNDELIVERABLE_PATTERN.test(body),
+      }
     }
-    return true
+    return { ok: true }
   } catch (err) {
     console.error(`[email:${tag}] send failed:`, err)
-    return false
+    return { ok: false, error: err instanceof Error ? err.message : 'send failed' }
   }
 }
 

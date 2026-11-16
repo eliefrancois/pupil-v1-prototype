@@ -27,10 +27,12 @@ export function EmailShell({
   preview,
   children,
   footerNote,
+  unsubscribeUrl,
 }: {
   preview: string
   children: React.ReactNode
   footerNote?: string
+  unsubscribeUrl?: string
 }) {
   return (
     <Html>
@@ -129,6 +131,14 @@ export function EmailShell({
               >
                 Contact
               </Link>
+              {unsubscribeUrl && (
+                <>
+                  {' · '}
+                  <Link href={unsubscribeUrl} style={{ color: colors.text2 }}>
+                    Unsubscribe from reminders
+                  </Link>
+                </>
+              )}
             </Text>
           </Section>
         </Container>

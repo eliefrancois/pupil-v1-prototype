@@ -1,12 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { createClient } from '@/lib/supabase/server'
+import {
+  BILLING_COLUMNS,
+  planFromBilling,
+  type BillingRow,
+  type Plan,
+} from '@/lib/billing/access'
 
 /**
  * What a student can do, derived from their plan, match, and bookings.
  *
- * Plans: 'subscribed' ($99/month via Stripe), 'free_access' (eligibility),
- * or 'none'. Every matched student can message their mentor. Matched
+ * Plans: 'subscribed' ($99/month via Stripe, or a prepaid plan until its end
+ * date), 'free_access' (eligibility), or 'none'. Every matched student can
+ * message their mentor. Matched
  * students without a plan get one free session: their first session ever.
  * A booking made with it has `is_free_trial`; it stops counting once
  * `free_trial_released_at` is set (early cancel, mentor cancel or no-show),
@@ -14,7 +21,6 @@ import { createClient } from '@/lib/supabase/server'
  * trigger and the session_bookings_one_free_trial index enforce this in the DB.
  */
 
-export type Plan = 'subscribed' | 'free_access' | 'none'
 export type FreeSessionState = 'available' | 'booked' | 'used'
 
 export type Entitlements = {
@@ -43,7 +49,7 @@ export type EntitlementBooking = {
 }
 
 export type EntitlementInput = {
-  subscriptionStatus: string | null
+  billing: BillingRow | null
   profile: {
     matched_mentor_id: string | null
     sessions_total: number | null
@@ -58,14 +64,8 @@ export type EntitlementInput = {
 const COUNTED_STATUSES = new Set(['upcoming', 'completed', 'no_show'])
 const DEFAULT_SESSIONS_TOTAL = 24
 
-export function planFromStatus(status: string | null | undefined): Plan {
-  if (status === 'active') return 'subscribed'
-  if (status === 'free') return 'free_access'
-  return 'none'
-}
-
 export function computeEntitlements(input: EntitlementInput): Entitlements {
-  const plan = planFromStatus(input.subscriptionStatus)
+  const plan: Plan = input.billing ? planFromBilling(input.billing) : 'none'
   const hasPlan = plan !== 'none'
   const mentorId = input.profile?.matched_mentor_id ?? null
   const isMatched = mentorId !== null
@@ -120,9 +120,9 @@ export async function getStudentEntitlements(
     await Promise.all([
       supabase
         .from('users')
-        .select('subscription_status')
+        .select(BILLING_COLUMNS)
         .eq('id', userId)
-        .maybeSingle<{ subscription_status: string }>(),
+        .maybeSingle<BillingRow>(),
       supabase
         .from('student_profiles')
         .select(
@@ -138,7 +138,7 @@ export async function getStudentEntitlements(
     ])
 
   return computeEntitlements({
-    subscriptionStatus: user?.subscription_status ?? null,
+    billing: user ?? null,
     profile: profile ?? null,
     bookings: bookings ?? [],
   })

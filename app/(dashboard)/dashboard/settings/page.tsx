@@ -12,7 +12,14 @@ import { Button } from '@/components/ui/button'
 import ManageBillingButton from '@/components/billing/manage-billing-button'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
-import { planFromStatus, type Plan } from '@/lib/entitlements'
+import {
+  BILLING_COLUMNS,
+  hasActiveSubscription,
+  planFromBilling,
+  prepaidActive,
+  type BillingRow,
+  type Plan,
+} from '@/lib/billing/access'
 
 import SettingsForm from './settings-form'
 
@@ -26,12 +33,20 @@ export default async function SettingsPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/dashboard/settings')
 
-  const plan = planFromStatus(user.subscription_status)
   const { data: billing } = await createClient()
     .from('users')
-    .select('stripe_customer_id')
+    .select(`stripe_customer_id, ${BILLING_COLUMNS}`)
     .eq('id', user.id)
-    .maybeSingle<{ stripe_customer_id: string | null }>()
+    .maybeSingle<BillingRow & { stripe_customer_id: string | null }>()
+  const plan = planFromBilling(billing ?? user)
+  const prepaidThrough =
+    billing && prepaidActive(billing) && billing.prepaid_access_ends_at
+      ? new Date(billing.prepaid_access_ends_at).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : null
 
   return (
     <div className="h-full overflow-y-auto">
@@ -75,6 +90,12 @@ export default async function SettingsPage() {
                   {PLAN_LABELS[plan]}
                 </span>
               </div>
+              {prepaidThrough && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] text-text-2">Prepaid through</span>
+                  <span className="text-[14px] text-text">{prepaidThrough}</span>
+                </div>
+              )}
               {plan === 'none' && (
                 <>
                   <p className="text-[13px] text-text-2">
@@ -102,7 +123,9 @@ export default async function SettingsPage() {
                 (billing?.stripe_customer_id ? (
                   <>
                     <p className="text-[13px] text-text-2">
-                      Update your card, download receipts, or cancel anytime.
+                      {billing && hasActiveSubscription(billing)
+                        ? 'Update your card, download receipts, or cancel anytime.'
+                        : 'Download your receipts and update your billing details.'}
                     </p>
                     <ManageBillingButton />
                   </>

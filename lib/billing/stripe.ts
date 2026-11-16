@@ -16,27 +16,3 @@ export function getPriceId(): string | null {
 export function isBillingConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY && getPriceId())
 }
-
-export type BillingStatus = 'active' | 'inactive'
-
-/**
- * Stripe subscription status to users.subscription_status. past_due keeps
- * access while Stripe retries the card; once retries run out Stripe cancels
- * the subscription (or marks it unpaid) and access ends. incomplete means the
- * first payment hasn't gone through yet, so nothing changes.
- */
-export function billingStatusFor(status: Stripe.Subscription.Status): BillingStatus | null {
-  switch (status) {
-    case 'active':
-    case 'trialing':
-    case 'past_due':
-      return 'active'
-    case 'canceled':
-    case 'unpaid':
-    case 'incomplete_expired':
-    case 'paused':
-      return 'inactive'
-    default:
-      return null
-  }
-}

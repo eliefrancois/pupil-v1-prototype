@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 
 import { createServiceClient } from '@/lib/supabase/service'
 import { handleStripeEvent } from '@/lib/billing/webhook'
+import { getStripe } from '@/lib/billing/stripe'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await handleStripeEvent(supabase, event)
+    await handleStripeEvent(supabase, event, getStripe())
   } catch (err) {
     console.error(`[stripe] ${event.type} ${event.id} failed:`, err)
     await supabase.from('stripe_events').delete().eq('id', event.id)

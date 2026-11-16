@@ -7,7 +7,7 @@ import { Loader2, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { captureEvent } from '@/lib/analytics/client'
 import { startCheckout } from '@/lib/billing/client'
-import type { Plan } from '@/lib/entitlements'
+import type { Plan } from '@/lib/billing/access'
 
 const CHECKOUT_INTENT = '/pricing?checkout=1'
 const CONTACT_EMAIL = 'dario@getpupil.com'

@@ -24,10 +24,10 @@ import UpgradeButton from '@/components/billing/upgrade-button'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import {
   getStudentEntitlements,
-  planFromStatus,
   shouldShowFreeSessionModal,
   shouldShowUpgradeModal,
 } from '@/lib/entitlements'
+import { planFromBilling } from '@/lib/billing/access'
 import { isBillingConfigured } from '@/lib/billing/stripe'
 import { toMentorSummary } from '@/lib/billing/mentor-summary'
 import {
@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/dashboard')
 
-  const isPaid = planFromStatus(user.subscription_status) !== 'none'
+  const isPaid = planFromBilling(user) !== 'none'
   const firstName = user.full_name?.split(' ')[0] || 'there'
 
   const profile = await getStudentProfile(user.id)

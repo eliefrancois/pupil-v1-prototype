@@ -22,7 +22,7 @@ async function verifyCheckout(sessionId: string | undefined, userId: string): Pr
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId)
     const owner = session.client_reference_id ?? session.metadata?.user_id
-    if (owner !== userId) return 'pending'
+    if (owner !== userId || session.mode !== 'subscription') return 'pending'
     const paid =
       session.payment_status === 'paid' || session.payment_status === 'no_payment_required'
     if (session.status !== 'complete' || !paid) return 'pending'

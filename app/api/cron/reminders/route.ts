@@ -26,8 +26,18 @@ export async function GET(request: NextRequest) {
   const limit =
     Number.isInteger(parsedLimit) && parsedLimit > 0 ? parsedLimit : DEFAULT_RUN_LIMIT
 
+  const supabase = createServiceClient()
+
+  // Access checks already compare dates; this keeps subscription_status in step.
+  const { data: expired, error: expireError } = await supabase.rpc('expire_prepaid_access')
+  if (expireError) {
+    console.error('[billing] expire_prepaid_access failed:', expireError.message)
+  } else if (expired) {
+    console.log(`[billing] prepaid access ended for ${expired} user(s)`)
+  }
+
   try {
-    const result = await runReminders(createServiceClient(), { limit })
+    const result = await runReminders(supabase, { limit })
     console.log(
       `[reminders] ${result.globalMode}/${result.schedule}: sent=${result.sent} failed=${result.failed} outside_window=${result.outsideWindow} dry_run_logged=${result.dryRunLogged} converted=${result.housekeeping.converted} flagged=${result.housekeeping.flagged}`
     )

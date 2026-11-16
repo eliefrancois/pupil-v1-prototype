@@ -4,7 +4,7 @@ import { Check, Gift, Shield } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getCurrentUser } from '@/lib/supabase/get-user'
-import { planFromStatus } from '@/lib/entitlements'
+import { planFromBilling } from '@/lib/billing/access'
 import { isBillingConfigured, PRICE_PER_MONTH_USD } from '@/lib/billing/stripe'
 
 import PricingCta from './pricing-cta'
@@ -25,7 +25,7 @@ export default async function PricingPage({
   searchParams: { checkout?: string }
 }) {
   const user = await getCurrentUser()
-  const plan = user ? planFromStatus(user.subscription_status) : null
+  const plan = user ? planFromBilling(user) : null
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">

@@ -10,6 +10,8 @@ import {
   NativeSelectOption as SelectOption,
 } from "@/components/ui/native-select"
 import { Button } from "@/components/ui/button"
+import EmailHint from "@/components/email-hint"
+import { isValidEmail } from "@/lib/validation/email"
 
 type EligibilityType = "SNAP" | "FRPL" | "Common App Waiver" | null
 type CodeStatus = "idle" | "loading" | "success" | "error"
@@ -24,6 +26,8 @@ export default function AccessPage() {
   const [eligibilityType, setEligibilityType] = useState<EligibilityType>(null)
   const [counselorEmail, setCounselorEmail] = useState("")
   const [eligibilitySubmitted, setEligibilitySubmitted] = useState(false)
+  const [emailTouched, setEmailTouched] = useState(false)
+  const [counselorEmailTouched, setCounselorEmailTouched] = useState(false)
 
   // Pilot code state
   const [pilotCode, setPilotCode] = useState("")
@@ -31,6 +35,11 @@ export default function AccessPage() {
 
   const handleEligibilitySubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isValidEmail(email) || !isValidEmail(counselorEmail)) {
+      setEmailTouched(true)
+      setCounselorEmailTouched(true)
+      return
+    }
     // TODO: submit to API
     setEligibilitySubmitted(true)
   }
@@ -120,9 +129,17 @@ export default function AccessPage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => setEmailTouched(true)}
                       required
                       className="mt-1.5"
                     />
+                    <div className="mt-1.5">
+                      <EmailHint
+                        email={email}
+                        showError={emailTouched}
+                        onAccept={setEmail}
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -187,10 +204,18 @@ export default function AccessPage() {
                       type="email"
                       value={counselorEmail}
                       onChange={(e) => setCounselorEmail(e.target.value)}
+                      onBlur={() => setCounselorEmailTouched(true)}
                       required
                       placeholder="counselor@school.edu"
                       className="mt-1.5"
                     />
+                    <div className="mt-1.5">
+                      <EmailHint
+                        email={counselorEmail}
+                        showError={counselorEmailTouched}
+                        onAccept={setCounselorEmail}
+                      />
+                    </div>
                   </div>
 
                   <Button type="submit" className="w-full sm:w-auto" size="lg">

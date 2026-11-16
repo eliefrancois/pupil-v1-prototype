@@ -20,6 +20,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BrandMark from '@/components/brand-mark'
+import EmailHint from '@/components/email-hint'
+import { normalizeEmail, validateEmail } from '@/lib/validation/email'
 
 const MENTOR_PARTNER_DOMAINS = ['hispanicheritage.org'] as const
 
@@ -27,6 +29,7 @@ export default function MentorSignupPage() {
   const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [emailTouched, setEmailTouched] = useState(false)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -40,7 +43,14 @@ export default function MentorSignupPage() {
     e.preventDefault()
     setError('')
 
-    const lowerEmail = email.trim().toLowerCase()
+    const emailError = validateEmail(email)
+    if (emailError) {
+      setEmailTouched(true)
+      setError(emailError)
+      return
+    }
+
+    const lowerEmail = normalizeEmail(email)
     const isEduEmail = lowerEmail.endsWith('.edu')
     const isPartnerEmail = MENTOR_PARTNER_DOMAINS.some((domain) =>
       lowerEmail.endsWith(`@${domain}`)
@@ -68,7 +78,7 @@ export default function MentorSignupPage() {
       const supabase = createClient()
 
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: lowerEmail,
         password,
         options: { data: { full_name: fullName, role: 'mentor' } },
       })
@@ -186,10 +196,16 @@ export default function MentorSignupPage() {
                   placeholder="you@school.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setEmailTouched(true)}
                   className="pl-10"
                   required
                 />
               </div>
+              <EmailHint
+                email={email}
+                showError={emailTouched}
+                onAccept={setEmail}
+              />
               <p className="text-[12px] text-text-3">
                 A .edu email or partner organization email is required to verify
                 your enrollment.

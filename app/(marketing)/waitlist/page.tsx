@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
+import EmailHint from "@/components/email-hint"
+import { isValidEmail } from "@/lib/validation/email"
 
 const ETHNICITY_OPTIONS = [
   "Asian",
@@ -42,6 +44,7 @@ export default function WaitlistPage() {
   // Form state
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [emailTouched, setEmailTouched] = useState(false)
   const [grade, setGrade] = useState("")
   const [ethnicities, setEthnicities] = useState<string[]>([])
   const [firstGen, setFirstGen] = useState<string>("")
@@ -70,6 +73,10 @@ export default function WaitlistPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isValidEmail(email)) {
+      setEmailTouched(true)
+      return
+    }
     // TODO: submit to API
     setSubmitted(true)
   }
@@ -134,9 +141,17 @@ export default function WaitlistPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => setEmailTouched(true)}
             required
             className="mt-1.5"
           />
+          <div className="mt-1.5">
+            <EmailHint
+              email={email}
+              showError={emailTouched}
+              onAccept={setEmail}
+            />
+          </div>
         </div>
 
         {/* Grade */}

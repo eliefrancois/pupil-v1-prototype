@@ -19,11 +19,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BrandMark from '@/components/brand-mark'
+import EmailHint from '@/components/email-hint'
+import { normalizeEmail, validateEmail } from '@/lib/validation/email'
 
 export default function SignupPage() {
   const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [emailTouched, setEmailTouched] = useState(false)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -36,6 +39,13 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    const emailError = validateEmail(email)
+    if (emailError) {
+      setEmailTouched(true)
+      setError(emailError)
+      return
+    }
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters.')
@@ -53,7 +63,7 @@ export default function SignupPage() {
       const supabase = createClient()
 
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: normalizeEmail(email),
         password,
         options: { data: { full_name: fullName, role: 'student' } },
       })
@@ -165,10 +175,16 @@ export default function SignupPage() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setEmailTouched(true)}
                   className="pl-10"
                   required
                 />
               </div>
+              <EmailHint
+                email={email}
+                showError={emailTouched}
+                onAccept={setEmail}
+              />
             </div>
 
             <div className="space-y-2">

@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation'
 
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
-import { getColleges, getMajors } from '@/lib/data/colleges-majors'
+import {
+  findCollegeByName,
+  getCollegeById,
+  getMajors,
+} from '@/lib/data/colleges-majors'
 
 import MentorOnboardingForm, {
   type ExistingProfile,
@@ -17,7 +21,7 @@ export default async function MentorOnboardingPage() {
   }
 
   const supabase = createClient()
-  const [{ data: profile }, colleges, majors] = await Promise.all([
+  const [{ data: profile }, majors] = await Promise.all([
     supabase
       .from('mentor_profiles')
       .select(
@@ -25,7 +29,6 @@ export default async function MentorOnboardingPage() {
       )
       .eq('user_id', user.id)
       .maybeSingle<ExistingProfile>(),
-    getColleges(),
     getMajors(),
   ])
 
@@ -33,13 +36,19 @@ export default async function MentorOnboardingPage() {
     redirect('/mentor')
   }
 
+  const initialCollege = profile?.college_id
+    ? await getCollegeById(profile.college_id)
+    : profile?.university
+      ? await findCollegeByName(profile.university)
+      : null
+
   return (
     <MentorOnboardingForm
       userId={user.id}
       fullName={user.full_name ?? ''}
       email={user.email}
       existingProfile={profile ?? null}
-      colleges={colleges}
+      initialCollege={initialCollege}
       majors={majors}
     />
   )

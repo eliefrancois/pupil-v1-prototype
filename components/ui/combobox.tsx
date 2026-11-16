@@ -44,6 +44,18 @@ export interface ComboboxProps {
   maxRendered?: number
   /** Always shown below the results, even when the search matches nothing. */
   pinnedOption?: ComboboxOption
+  /**
+   * Async mode: the parent fetches `options` for each search term, so the
+   * built-in filter is turned off.
+   */
+  onSearchChange?: (search: string) => void
+  loading?: boolean
+  /** Label source for a `value` that isn't in the current async results. */
+  selectedOption?: ComboboxOption
+}
+
+function itemValue(option: ComboboxOption) {
+  return `${option.label} ${option.keywords ?? ''}`.trim()
 }
 
 export function Combobox({
@@ -60,24 +72,49 @@ export function Combobox({
   id,
   maxRendered = 200,
   pinnedOption,
+  onSearchChange,
+  loading,
+  selectedOption,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
+  const isAsync = !!onSearchChange
 
-  const selected = React.useMemo(
-    () =>
-      pinnedOption?.value === value
-        ? pinnedOption
-        : options.find((o) => o.value === value),
-    [options, value, pinnedOption]
-  )
+  const selected = React.useMemo(() => {
+    if (pinnedOption?.value === value) return pinnedOption
+    return (
+      options.find((o) => o.value === value) ??
+      (selectedOption?.value === value ? selectedOption : undefined)
+    )
+  }, [options, value, pinnedOption, selectedOption])
 
   const visibleOptions = React.useMemo(() => {
-    if (search.trim().length > 0) return options
+    if (isAsync || search.trim().length > 0) return options
     return options.slice(0, maxRendered)
-  }, [options, search, maxRendered])
+  }, [options, search, maxRendered, isAsync])
 
   const truncated = options.length > visibleOptions.length
+
+  // cmdk keeps the highlight on whatever was first when the list rendered
+  // (often the pinned option while results load), so move it to the top
+  // result whenever async results arrive.
+  const [highlighted, setHighlighted] = React.useState('')
+  React.useEffect(() => {
+    if (!isAsync) return
+    const first = options[0]
+    setHighlighted(first ? itemValue(first) : pinnedOption?.value ?? '')
+  }, [isAsync, options, pinnedOption])
+
+  const updateSearch = (next: string) => {
+    setSearch(next)
+    onSearchChange?.(next)
+  }
+
+  const choose = (next: string) => {
+    onValueChange(next)
+    setOpen(false)
+    updateSearch('')
+  }
 
   return (
     <div className={className}>
@@ -108,24 +145,34 @@ export function Combobox({
             contentClassName
           )}
         >
-          <Command shouldFilter={true}>
+          <Command
+            shouldFilter={!isAsync}
+            {...(isAsync && {
+              value: highlighted,
+              onValueChange: setHighlighted,
+            })}
+          >
             <CommandInput
               placeholder={searchPlaceholder}
               value={search}
-              onValueChange={setSearch}
+              onValueChange={updateSearch}
             />
             <CommandList>
-              <CommandEmpty>{emptyMessage}</CommandEmpty>
+              {isAsync ? (
+                options.length === 0 && (
+                  <p className="py-6 text-center text-[13px] text-text-3">
+                    {loading ? 'Searching...' : emptyMessage}
+                  </p>
+                )
+              ) : (
+                <CommandEmpty>{emptyMessage}</CommandEmpty>
+              )}
               <CommandGroup>
                 {visibleOptions.map((option) => (
                   <CommandItem
                     key={option.value}
-                    value={`${option.label} ${option.keywords ?? ''}`}
-                    onSelect={() => {
-                      onValueChange(option.value)
-                      setOpen(false)
-                      setSearch('')
-                    }}
+                    value={itemValue(option)}
+                    onSelect={() => choose(option.value)}
                   >
                     <span className="flex-1 truncate">
                       {option.label}
@@ -152,11 +199,7 @@ export function Combobox({
                   <CommandItem
                     forceMount
                     value={pinnedOption.value}
-                    onSelect={() => {
-                      onValueChange(pinnedOption.value)
-                      setOpen(false)
-                      setSearch('')
-                    }}
+                    onSelect={() => choose(pinnedOption.value)}
                   >
                     <span className="flex-1 truncate">{pinnedOption.label}</span>
                     {value === pinnedOption.value && (

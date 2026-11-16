@@ -24,6 +24,7 @@ import EligibilityCounselorEmail from '@/emails/eligibility-counselor'
 import MentorAssignedEmail from '@/emails/mentor-assigned'
 import MentorApprovedEmail from '@/emails/mentor-approved'
 import ReminderEmail from '@/emails/reminder'
+import ReminderDigestEmail, { type ReminderDigestEmailProps } from '@/emails/reminder-digest'
 
 import { getSiteUrl } from '@/lib/site-url'
 
@@ -362,6 +363,20 @@ export async function notifyReminder(payload: ReminderNotification): Promise<Del
       'List-Unsubscribe': `<${payload.oneClickUnsubscribeUrl}>, <mailto:${ADMIN_EMAIL}?subject=unsubscribe>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     },
+  })
+}
+
+/** Monday summary of stuck mentors, quiet students, and reminder results. */
+export async function notifyReminderDigest(
+  payload: ReminderDigestEmailProps
+): Promise<boolean> {
+  const node = ReminderDigestEmail(payload)
+  return deliver({
+    to: ADMIN_EMAIL,
+    subject: `Pupil weekly: ${payload.stuckMentors.length} mentors without times, ${payload.silentStudents.length} quiet students`,
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: 'reminder_digest',
   })
 }
 

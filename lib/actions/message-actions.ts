@@ -2,6 +2,8 @@
 
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { notifyMentorOfFirstMessage } from '@/lib/email/notifications'
 
 export type SendMessageResult =
   | { ok: true; messageId: string }
@@ -342,6 +344,49 @@ async function moderateMessage(originalContent: string): Promise<ModerationResul
 }
 
 /* ------------------------------------------------------------------ */
+/*  Mentor heads-up on a mentee's first delivered message             */
+/* ------------------------------------------------------------------ */
+
+async function notifyMentorIfFirstMessage(
+  conversationId: string,
+  participantIds: string[],
+  senderId: string
+) {
+  try {
+    const service = createServiceClient()
+    const recipientId = participantIds.find((id) => id !== senderId)
+    if (!recipientId) return
+
+    const [{ data: people }, { count }] = await Promise.all([
+      service
+        .from('users')
+        .select('id, full_name, email, role')
+        .in('id', [senderId, recipientId])
+        .returns<{ id: string; full_name: string; email: string; role: string }[]>(),
+      service
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('sender_id', senderId)
+        .or('is_flagged.is.null,is_flagged.eq.false'),
+    ])
+
+    if (count !== 1) return
+    const sender = people?.find((p) => p.id === senderId)
+    const mentor = people?.find((p) => p.id === recipientId)
+    if (sender?.role !== 'student' || mentor?.role !== 'mentor') return
+
+    await notifyMentorOfFirstMessage({
+      mentorEmail: mentor.email,
+      mentorName: mentor.full_name,
+      studentName: sender.full_name,
+    })
+  } catch (err) {
+    console.error('[messaging] first-message notification failed:', err)
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  sendMessage — server action                                       */
 /* ------------------------------------------------------------------ */
 
@@ -442,7 +487,7 @@ export async function sendMessage(input: {
       .single<{ full_name: string | null; email: string | null }>()
 
     if (isSevere) {
-      notifyAdminIfSevere({
+      await notifyAdminIfSevere({
         tier: moderation.flag_tier!,
         tierReason: moderation.flag_reason,
         senderName: sender?.full_name ?? 'Unknown user',
@@ -451,7 +496,7 @@ export async function sendMessage(input: {
     }
 
     if (crossedThreshold) {
-      notifyAdminOfStrikeThreshold({
+      await notifyAdminOfStrikeThreshold({
         senderName: sender?.full_name ?? 'Unknown user',
         senderEmail: sender?.email ?? null,
         senderId: user.id,
@@ -460,6 +505,10 @@ export async function sendMessage(input: {
         console.error('[moderation] strike threshold notification error:', err)
       )
     }
+  }
+
+  if (!moderation.is_flagged) {
+    await notifyMentorIfFirstMessage(conv.id, conv.participant_ids, user.id)
   }
 
   // Return violation info so the client can show the appropriate UI

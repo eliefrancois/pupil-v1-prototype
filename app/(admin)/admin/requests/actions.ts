@@ -79,12 +79,12 @@ export async function forwardRequest(requestId: string): Promise<Result> {
 
   if (error) return { ok: false, error: 'Could not update request.' }
 
-  void notifyMentorOfForwardedRequest({
+  await notifyMentorOfForwardedRequest({
     mentorEmail: req.mentor.email,
     mentorName: req.mentor.full_name,
     studentName: req.student.full_name,
     studentMessage: req.student_message,
-  })
+  }).catch((err) => console.error('[admin-requests] forward email failed:', err))
 
   revalidatePath('/admin/matching')
   return { ok: true }
@@ -132,12 +132,12 @@ export async function declineRequest(
 
   if (error) return { ok: false, error: 'Could not update request.' }
 
-  void notifyStudentOfDecline({
+  await notifyStudentOfDecline({
     studentEmail: req.student.email,
     studentName: req.student.full_name,
     mentorName: req.mentor.full_name,
     reason: trimmedReason,
-  })
+  }).catch((err) => console.error('[admin-requests] decline email failed:', err))
 
   revalidatePath('/admin/matching')
   return { ok: true }

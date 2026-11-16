@@ -17,10 +17,11 @@ export default function StudentMatchedEmail({
   mentorUniversity = 'Stanford University',
 }: StudentMatchedEmailProps) {
   const firstName = studentName.trim().split(/\s+/)[0]
+  const mentorFirstName = mentorName.trim().split(/\s+/)[0]
 
   return (
     <EmailShell
-      preview={`You're matched with ${mentorName} on Pupil`}
+      preview={`You've been matched with ${mentorFirstName}. Send them a quick hello to get started.`}
       footerNote="Questions? Reply to this email or reach us at dario@getpupil.com."
     >
       <Heading
@@ -35,8 +36,20 @@ export default function StudentMatchedEmail({
           color: colors.text,
         }}
       >
-        Hi {firstName}, you're matched.
+        Hi {firstName}, you&apos;re matched.
       </Heading>
+
+      <Text
+        style={{
+          margin: '0 0 12px 0',
+          fontSize: '16px',
+          lineHeight: '26px',
+          color: colors.text2,
+        }}
+      >
+        You&apos;ve been matched with <strong>{mentorFirstName}</strong>
+        {mentorUniversity ? ` from ${mentorUniversity}` : ''}.
+      </Text>
 
       <Text
         style={{
@@ -46,13 +59,14 @@ export default function StudentMatchedEmail({
           color: colors.text2,
         }}
       >
-        We paired you with <strong>{mentorName}</strong>
-        {mentorUniversity ? ` (${mentorUniversity})` : ''}. Head to your
-        dashboard to book your first session or send a message.
+        Log in and send them a quick hello to get started. Your mentor can
+        reply once you reach out.
       </Text>
 
       <Section style={{ padding: '8px 0 8px 0', textAlign: 'center' }}>
-        <EmailButton href={`${SITE_URL}/dashboard`}>Go to dashboard</EmailButton>
+        <EmailButton href={`${SITE_URL}/dashboard/messages`}>
+          Say hello to {mentorFirstName}
+        </EmailButton>
       </Section>
     </EmailShell>
   )

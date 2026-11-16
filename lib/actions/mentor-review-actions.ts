@@ -68,12 +68,12 @@ export async function updateMentorReviewStatus({
   if (error) return { ok: false, error: error.message }
 
   if (status === 'approved' && wasPending) {
-    void notifyMentorApproved({
+    await notifyMentorApproved({
       mentorEmail,
       mentorName,
       mentorUserId,
       university,
-    })
+    }).catch((err) => console.error('[mentor-review] approval email failed:', err))
   }
 
   revalidatePath('/admin/mentors')

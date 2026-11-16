@@ -19,6 +19,7 @@ import MatchRequestForwardedEmail from '@/emails/match-request-forwarded'
 import MatchRequestDeclinedEmail from '@/emails/match-request-declined'
 import MatchRequestAdminEmail from '@/emails/match-request-admin'
 import StudentMatchedEmail from '@/emails/student-matched'
+import MenteeFirstMessageEmail from '@/emails/mentee-first-message'
 import MentorAssignedEmail from '@/emails/mentor-assigned'
 import MentorApprovedEmail from '@/emails/mentor-approved'
 
@@ -175,12 +176,38 @@ export async function notifyStudentMatched(payload: {
     mentorUniversity: payload.mentorUniversity,
   })
 
+  const mentorFirstName = firstName(payload.mentorName)
   await deliver({
     to: payload.studentEmail,
-    subject: `You're matched with ${payload.mentorName} on Pupil`,
+    subject: payload.mentorUniversity
+      ? `You're matched with ${mentorFirstName} from ${payload.mentorUniversity}`
+      : `You're matched with ${mentorFirstName} on Pupil`,
     html: await render(node),
     text: await render(node, { plainText: true }),
     tag: 'student_matched',
+  })
+}
+
+/**
+ * Sent to a mentor the first time their mentee messages them. Never includes
+ * message content.
+ */
+export async function notifyMentorOfFirstMessage(payload: {
+  mentorEmail: string
+  mentorName: string
+  studentName: string
+}) {
+  const node = MenteeFirstMessageEmail({
+    mentorName: payload.mentorName,
+    studentName: payload.studentName,
+  })
+
+  await deliver({
+    to: payload.mentorEmail,
+    subject: `${firstName(payload.studentName)} sent you a message, log in to reply`,
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: 'mentee_first_message',
   })
 }
 

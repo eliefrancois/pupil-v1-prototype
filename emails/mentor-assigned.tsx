@@ -49,6 +49,8 @@ export default function MentorAssignedEmail({
         <strong>{studentName}</strong>
         {studentGrade ? ` (grade ${studentGrade})` : ''} has been assigned to
         you on Pupil. They may book sessions based on your shared availability.
+        Mentees send the first message, and we&apos;ll email you when they do so
+        you can reply.
       </Text>
 
       <Section style={{ padding: '8px 0 8px 0', textAlign: 'center' }}>

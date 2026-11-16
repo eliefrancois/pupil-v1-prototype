@@ -66,12 +66,12 @@ export async function sendGhostClaimEmail(
     .eq('user_id', mentorId)
   if (error) return { ok: false, error: 'Could not save claim token.' }
 
-  void notifyGhostMentorToClaim({
+  await notifyGhostMentorToClaim({
     mentorEmail: mentor.email,
     mentorName: mentor.full_name,
     claimUrl: `${SITE_URL}/mentor-claim/${token}`,
     studentName,
-  })
+  }).catch((err) => console.error('[ghost-claim] claim email failed:', err))
 
   return { ok: true }
 }

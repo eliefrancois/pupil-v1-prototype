@@ -121,7 +121,7 @@ export async function assignStudentMentor({
       .eq('student_id', studentId)
       .in('status', ['pending', 'forwarded'])
 
-    void sendMatchNotifications(supabase, studentId, mentorId)
+    await sendMatchNotifications(supabase, studentId, mentorId)
   }
 
   revalidatePath('/admin/matching')

@@ -26,9 +26,11 @@ import {
 } from '@/components/ui/select'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { Badge } from '@/components/ui/badge'
+import { CollegePicker } from '@/components/onboarding/college-picker'
 import { cn } from '@/lib/utils'
 import { normalizeLinkedinUrl } from '@/lib/linkedin'
-import type { CollegeRecord, MajorRecord } from '@/lib/data/colleges-majors'
+import type { CollegeRecord } from '@/lib/colleges'
+import type { MajorRecord } from '@/lib/data/colleges-majors'
 import { MENTOR_SPECIALTIES } from '@/lib/constants'
 import {
   backgroundDimensions,
@@ -132,7 +134,8 @@ interface MentorOnboardingFormProps {
   fullName: string
   email: string
   existingProfile: ExistingProfile | null
-  colleges: CollegeRecord[]
+  /** The saved college, resolved by college_id or by exact university name. */
+  initialCollege: CollegeRecord | null
   majors: MajorRecord[]
 }
 
@@ -141,36 +144,17 @@ export default function MentorOnboardingForm({
   fullName: initialFullName,
   email,
   existingProfile,
-  colleges,
+  initialCollege,
   majors,
 }: MentorOnboardingFormProps) {
-  const collegeOptions = useMemo<ComboboxOption[]>(
-    () =>
-      colleges.map((c) => ({
-        value: c.id,
-        label: c.name,
-        description: c.state,
-        keywords: c.state,
-      })),
-    [colleges]
-  )
-
   const majorOptions = useMemo<ComboboxOption[]>(
     () => majors.map((m) => ({ value: m.id, label: m.name })),
     [majors]
   )
 
-  const collegeById = useMemo(
-    () => new Map(colleges.map((c) => [c.id, c])),
-    [colleges]
-  )
   const majorById = useMemo(
     () => new Map(majors.map((m) => [m.id, m])),
     [majors]
-  )
-  const collegeIdByName = useMemo(
-    () => new Map(colleges.map((c) => [c.name.toLowerCase(), c.id])),
-    [colleges]
   )
   const majorIdByName = useMemo(
     () => new Map(majors.map((m) => [m.name.toLowerCase(), m.id])),
@@ -191,22 +175,19 @@ export default function MentorOnboardingForm({
 
   const [fullName, setFullName] = useState(initialFullName)
   const [collegeId, setCollegeId] = useState(() => {
-    if (existingProfile?.college_id) return existingProfile.college_id
-    if (existingProfile?.university) {
-      return (
-        collegeIdByName.get(existingProfile.university.toLowerCase()) ??
-        OTHER_COLLEGE
-      )
-    }
-    return ''
+    if (initialCollege) return initialCollege.id
+    return existingProfile?.university ? OTHER_COLLEGE : ''
   })
+  const [selectedCollege, setSelectedCollege] = useState(initialCollege)
   const [otherUniversity, setOtherUniversity] = useState(() =>
-    existingProfile?.university &&
-    !existingProfile.college_id &&
-    !collegeIdByName.has(existingProfile.university.toLowerCase())
+    existingProfile?.university && !initialCollege
       ? existingProfile.university
       : ''
   )
+  const selectCollege = (value: string, college: CollegeRecord | null) => {
+    setCollegeId(value)
+    setSelectedCollege(college)
+  }
   const isOtherCollege = collegeId === OTHER_COLLEGE
   const [yearInSchool, setYearInSchool] = useState(
     existingProfile?.year_in_school ?? ''
@@ -361,7 +342,10 @@ export default function MentorOnboardingForm({
           .eq('id', userId)
       }
 
-      const collegeRecord = isOtherCollege ? null : collegeById.get(collegeId)
+      const collegeRecord =
+        !isOtherCollege && selectedCollege?.id === collegeId
+          ? selectedCollege
+          : null
       const universityName = isOtherCollege
         ? otherUniversity.trim()
         : collegeRecord?.name
@@ -473,8 +457,8 @@ export default function MentorOnboardingForm({
             setFullName={setFullName}
             email={email}
             collegeId={collegeId}
-            setCollegeId={setCollegeId}
-            collegeOptions={collegeOptions}
+            selectedCollege={selectedCollege}
+            selectCollege={selectCollege}
             otherUniversity={otherUniversity}
             setOtherUniversity={setOtherUniversity}
             yearInSchool={yearInSchool}
@@ -642,8 +626,8 @@ function Step1Academic({
   setFullName,
   email,
   collegeId,
-  setCollegeId,
-  collegeOptions,
+  selectedCollege,
+  selectCollege,
   otherUniversity,
   setOtherUniversity,
   yearInSchool,
@@ -658,8 +642,8 @@ function Step1Academic({
   setFullName: (v: string) => void
   email: string
   collegeId: string
-  setCollegeId: (v: string) => void
-  collegeOptions: ComboboxOption[]
+  selectedCollege: CollegeRecord | null
+  selectCollege: (value: string, college: CollegeRecord | null) => void
   otherUniversity: string
   setOtherUniversity: (v: string) => void
   yearInSchool: string
@@ -706,14 +690,11 @@ function Step1Academic({
 
         <div className="space-y-2">
           <Label htmlFor="university">College or university</Label>
-          <Combobox
+          <CollegePicker
             id="university"
-            options={collegeOptions}
             value={collegeId}
-            onValueChange={setCollegeId}
-            placeholder="Search for your school..."
-            searchPlaceholder="Search 1,000+ colleges..."
-            emptyMessage="No colleges match. Pick Other to type yours in."
+            selected={selectedCollege}
+            onChange={selectCollege}
             pinnedOption={OTHER_COLLEGE_OPTION}
           />
           {collegeId === OTHER_COLLEGE ? (

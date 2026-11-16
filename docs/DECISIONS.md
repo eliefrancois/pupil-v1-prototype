@@ -6,6 +6,25 @@ This is for *how* we build things. The PRD Decisions Log covers *what* we build 
 
 ---
 
+## 2026-11-16 — Global university list with server-side search
+
+**Decision:** Imported Hipo's `university-domains-list` (MIT, ~10k schools) into `colleges` and switched the mentor college picker to a debounced server-side search (`/api/colleges/search` calling the `search_colleges` Postgres function).
+
+**Why:** Mentors from outside the US couldn't find their school (Erasmus University Rotterdam, Indiana Institute of Technology, etc.). Shipping 10k rows to the browser on page load is too heavy.
+
+**Implementation:**
+- New columns on `colleges`: `country`, `country_code`, `state_province`, `domains`, `web_pages`, `source` (`existing` / `hipo` / `manual`), `external_id` (unique, `hipo:<CC>:<normalized name>`), and a stored `search_name` (lowercased, unaccented name) with a trigram GIN index.
+- `scripts/import-world-universities.ts` matches Hipo rows to curated rows by normalized name + country (+ state when both know it). Matched rows keep their id, name and state; they only gain domains and `external_id`, so `mentor_profiles.college_id` FKs are untouched. Unmatched rows are inserted with `source = 'hipo'`. Reruns are no-ops.
+- `colleges.name` is unique, so when a name is already taken by a school in another country the import stores it as `Name (Country)`. US schools claim the plain name first.
+- `search_colleges` ranks substring matches (exact, prefix, word start, shorter names first) and only falls back to trigram similarity when there are fewer than 20 substring matches. 1 to 13 ms for typical queries.
+- "Other, type your school" stays pinned under the results.
+
+**Alternatives considered:**
+- Drop the unique constraint on `name`. Rejected to keep this change additive; suffixing affects ~70 rows.
+- Client-side search over a lazily loaded list. Still ships ~1 MB of JSON and doesn't help low-end phones.
+
+---
+
 ## 2026-05-07 — Daily.co webhook on Supabase Edge Function (revision)
 
 **Decision:** Moved the Daily.co webhook handler from a Next.js API route (`app/api/webhooks/daily/route.ts`) to a Supabase Edge Function at `supabase/functions/daily-webhook`. Webhook registration is done once via `scripts/setup-daily-webhook.ts`, which calls Daily's `POST /webhooks` REST endpoint (Daily has no dashboard UI for webhooks).
@@ -165,8 +184,8 @@ We need one anchor or the slots become incoherent across DST and timezones. Ment
 - RLS: anon + authenticated read; admin-only write.
 
 **Implementation:**
-- `lib/data/colleges-majors.ts` — `getColleges()` and `getMajors()` server-side fetchers used by the `mentor-onboarding` server component.
-- Form receives `colleges: CollegeRecord[]` and `majors: MajorRecord[]` as props, builds `ComboboxOption[]` keyed by id with name as label and state as description.
+- `lib/data/colleges-majors.ts` — `getMajors()` plus college search/lookup helpers used by the `mentor-onboarding` server component.
+- Form receives `majors: MajorRecord[]` as props and builds `ComboboxOption[]` keyed by id. Colleges are searched server-side (see "Global university list" below).
 - Form state now stores `collegeId` / `majorId` (UUIDs) instead of free-text. Submit looks up the record from the prop arrays and writes both `college_id` (FK) and `university` (snapshot string) so the directory's existing select queries don't need to change.
 - Backfill migration matches existing rows by lowercased name (no rows to migrate currently, but the migration is idempotent).
 

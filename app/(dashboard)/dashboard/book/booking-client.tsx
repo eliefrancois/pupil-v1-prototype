@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { ArrowLeft, Calendar, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle2, Gift } from 'lucide-react'
 import { addDays, startOfWeek } from 'date-fns'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -28,6 +28,7 @@ interface BookingClientProps {
   mentorName: string
   mentorUniversity: string
   mentorTimezone: string | null
+  isFreeSession: boolean
   sessionsRemaining: number
   sessionsTotal: number
   mentorIsActive: boolean
@@ -39,6 +40,7 @@ export default function BookingClient({
   mentorId,
   mentorName,
   mentorUniversity,
+  isFreeSession,
   sessionsRemaining,
   sessionsTotal,
   mentorIsActive,
@@ -50,6 +52,7 @@ export default function BookingClient({
   const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(
     null
   )
+  const [confirmedFree, setConfirmedFree] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const [viewerTz, setViewerTz] = useState<string | undefined>(undefined)
@@ -122,11 +125,16 @@ export default function BookingClient({
         startsAtIso: pendingSlot.startsAtIso,
       })
       if (result.ok) {
+        setConfirmedFree(result.isFreeSession)
         setConfirmedBookingId(result.bookingId)
         setPendingSlot(null)
         router.refresh()
       } else {
         setError(result.error)
+        if (result.code === 'upgrade_required') {
+          setPendingSlot(null)
+          router.refresh()
+        }
       }
     })
   }
@@ -149,9 +157,16 @@ export default function BookingClient({
               With {mentorName} ({mentorUniversity})
             </p>
           </div>
-          <Badge variant="secondary">
-            {sessionsRemaining} of {sessionsTotal} sessions left
-          </Badge>
+          {isFreeSession ? (
+            <Badge variant="default">
+              <Gift className="h-3 w-3" />
+              First session free
+            </Badge>
+          ) : (
+            <Badge variant="secondary">
+              {sessionsRemaining} of {sessionsTotal} sessions left
+            </Badge>
+          )}
         </div>
 
         {!mentorIsActive && (
@@ -177,6 +192,11 @@ export default function BookingClient({
           <>
             <div className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3">
               <p className="text-[13px] text-text-2">
+                {isFreeSession && (
+                  <span className="font-medium text-text">
+                    Your first session is free, no card needed.{' '}
+                  </span>
+                )}
                 Sessions are 30 minutes. Pick any open time from{' '}
                 {mentorName}&apos;s availability. Times shown in US Eastern;
                 tap to see your local time.
@@ -270,7 +290,17 @@ export default function BookingClient({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Book this session?</DialogTitle>
+            <div className="flex items-center gap-2">
+              <DialogTitle>
+                {isFreeSession ? 'Book your free session?' : 'Book this session?'}
+              </DialogTitle>
+              {isFreeSession && (
+                <Badge variant="default">
+                  <Gift className="h-3 w-3" />
+                  Free
+                </Badge>
+              )}
+            </div>
             <DialogDescription>
               {pendingSlot && (
                 <>
@@ -282,8 +312,14 @@ export default function BookingClient({
                     )}
                   </span>
                   <span className="mt-1 block">
-                    30 minutes with {mentorName}. Uses 1 of your{' '}
-                    {sessionsRemaining} remaining sessions.
+                    {isFreeSession ? (
+                      <>30 minutes with {mentorName}. This one&apos;s on us.</>
+                    ) : (
+                      <>
+                        30 minutes with {mentorName}. Uses 1 of your{' '}
+                        {sessionsRemaining} remaining sessions.
+                      </>
+                    )}
                   </span>
                 </>
               )}
@@ -306,7 +342,11 @@ export default function BookingClient({
               Cancel
             </Button>
             <Button onClick={handleConfirm} disabled={pending}>
-              {pending ? 'Booking...' : 'Confirm booking'}
+              {pending
+                ? 'Booking...'
+                : isFreeSession
+                  ? 'Book free session'
+                  : 'Confirm booking'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -334,6 +374,11 @@ export default function BookingClient({
               You&apos;re booked
             </DialogTitle>
             <DialogDescription>
+              {confirmedFree && (
+                <span className="mb-1 block font-medium text-text">
+                  Your first session is free.
+                </span>
+              )}
               We&apos;ve sent a calendar invite to your email. The session
               will show up on your dashboard with a join button when it&apos;s
               time.

@@ -9,13 +9,29 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import ManageBillingButton from '@/components/billing/manage-billing-button'
 import { getCurrentUser } from '@/lib/supabase/get-user'
+import { createClient } from '@/lib/supabase/server'
+import { planFromStatus, type Plan } from '@/lib/entitlements'
 
 import SettingsForm from './settings-form'
+
+const PLAN_LABELS: Record<Plan, string> = {
+  subscribed: 'Subscribed',
+  free_access: 'Free access',
+  none: 'Not subscribed',
+}
 
 export default async function SettingsPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/dashboard/settings')
+
+  const plan = planFromStatus(user.subscription_status)
+  const { data: billing } = await createClient()
+    .from('users')
+    .select('stripe_customer_id')
+    .eq('id', user.id)
+    .maybeSingle<{ stripe_customer_id: string | null }>()
 
   return (
     <div className="h-full overflow-y-auto">
@@ -47,37 +63,64 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Subscription</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] text-text-2">Status</span>
-              <span className="text-[14px] font-medium capitalize text-text">
-                {user.subscription_status === 'inactive'
-                  ? 'Free preview'
-                  : user.subscription_status}
-              </span>
-            </div>
-            {user.subscription_status === 'inactive' ? (
-              <Button asChild className="w-full sm:w-auto">
-                <Link href="/pricing">Upgrade for $900/year</Link>
-              </Button>
-            ) : (
-              <p className="text-[13px] text-text-3">
-                To cancel or change your plan, email{' '}
-                <a
-                  href="mailto:support@getpupil.com"
-                  className="text-primary hover:underline"
-                >
-                  support@getpupil.com
-                </a>
-                .
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        {(user.role === 'student' || user.role === 'parent') && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Subscription</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-text-2">Status</span>
+                <span className="text-[14px] font-medium text-text">
+                  {PLAN_LABELS[plan]}
+                </span>
+              </div>
+              {plan === 'none' && (
+                <>
+                  <p className="text-[13px] text-text-2">
+                    Messaging and your first session are free. Subscribe for
+                    $99/month to book up to 24 sessions a year.
+                  </p>
+                  <Button asChild className="w-full sm:w-auto">
+                    <Link href="/pricing">See the plan</Link>
+                  </Button>
+                </>
+              )}
+              {plan === 'free_access' && (
+                <p className="text-[13px] text-text-3">
+                  Your family qualified for free access. Questions? Email{' '}
+                  <a
+                    href="mailto:support@getpupil.com"
+                    className="text-primary hover:underline"
+                  >
+                    support@getpupil.com
+                  </a>
+                  .
+                </p>
+              )}
+              {plan === 'subscribed' &&
+                (billing?.stripe_customer_id ? (
+                  <>
+                    <p className="text-[13px] text-text-2">
+                      Update your card, download receipts, or cancel anytime.
+                    </p>
+                    <ManageBillingButton />
+                  </>
+                ) : (
+                  <p className="text-[13px] text-text-3">
+                    To cancel or change your plan, email{' '}
+                    <a
+                      href="mailto:support@getpupil.com"
+                      className="text-primary hover:underline"
+                    >
+                      support@getpupil.com
+                    </a>
+                    .
+                  </p>
+                ))}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

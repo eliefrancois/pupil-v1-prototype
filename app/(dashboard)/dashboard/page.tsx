@@ -4,8 +4,8 @@ import {
   ArrowRight,
   Calendar,
   Clock,
+  Gift,
   List,
-  Lock,
   MessageCircle,
   Search,
   Star,
@@ -17,9 +17,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import Stars from '@/components/stars'
-import UpgradeBanner from '@/components/upgrade-banner'
 import StudentRequestsPanel from '@/components/student-requests-panel'
+import PlanBanner from '@/components/billing/plan-banner'
+import FreeSessionDialog from '@/components/billing/free-session-dialog'
+import UpgradeButton from '@/components/billing/upgrade-button'
 import { getCurrentUser } from '@/lib/supabase/get-user'
+import {
+  getStudentEntitlements,
+  planFromStatus,
+  shouldShowFreeSessionModal,
+  shouldShowUpgradeModal,
+} from '@/lib/entitlements'
+import { isBillingConfigured } from '@/lib/billing/stripe'
+import { toMentorSummary } from '@/lib/billing/mentor-summary'
 import {
   getStudentProfile,
   getMatchedMentor,
@@ -34,7 +44,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/dashboard')
 
-  const isPaid = user.subscription_status !== 'inactive'
+  const isPaid = planFromStatus(user.subscription_status) !== 'none'
   const firstName = user.full_name?.split(' ')[0] || 'there'
 
   const profile = await getStudentProfile(user.id)
@@ -50,10 +60,21 @@ export default async function DashboardPage() {
     )
   }
 
-  const usage = await getStudentSessionUsage(user.id)
-  const unratedSessions = await getUnratedSessionsForStudent(user.id)
+  const [usage, unratedSessions, entitlements] = await Promise.all([
+    getStudentSessionUsage(user.id),
+    getUnratedSessionsForStudent(user.id),
+    getStudentEntitlements(user.id),
+  ])
   const pendingRating =
     unratedSessions.find((s) => computeRatingWindow(s).isOpen) ?? null
+  const mentorSummary = toMentorSummary(matchedMentor)
+  const billingEnabled = isBillingConfigured()
+  const showFreeSessionModal =
+    !usage.upcoming && shouldShowFreeSessionModal(entitlements)
+  const autoOpenUpgrade = !pendingRating && shouldShowUpgradeModal(entitlements)
+  const bookLabel = entitlements.canBookFreeSession
+    ? 'Book your free session'
+    : 'Book a session'
 
   return (
     <div className="page-enter">
@@ -67,14 +88,28 @@ export default async function DashboardPage() {
               You&apos;re matched with {matchedMentor.full_name} this month.
             </p>
           </div>
-          {isPaid && (
+          {entitlements.sessionsRemaining !== null ? (
             <Badge variant="secondary">
-              {usage.remaining} of {usage.total} sessions left
+              {entitlements.sessionsRemaining} of {entitlements.sessionsTotal}{' '}
+              sessions left
             </Badge>
-          )}
+          ) : entitlements.canBookFreeSession ? (
+            <Badge variant="default">
+              <Gift className="h-3 w-3" />
+              First session free
+            </Badge>
+          ) : null}
         </div>
 
-        {!isPaid && <UpgradeBanner />}
+        {showFreeSessionModal && <FreeSessionDialog mentor={mentorSummary} />}
+
+        <PlanBanner
+          entitlements={entitlements}
+          mentor={mentorSummary}
+          billingEnabled={billingEnabled}
+          source="dashboard"
+          autoOpenUpgrade={autoOpenUpgrade}
+        />
 
         <StudentRequestsPanel studentId={user.id} />
 
@@ -136,31 +171,22 @@ export default async function DashboardPage() {
                 </div>
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
-                {isPaid ? (
-                  <>
-                    <Button asChild>
-                      <Link href="/dashboard/book">Book a session</Link>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <Link href="/dashboard/messages">Message</Link>
-                    </Button>
-                  </>
+                {entitlements.canBook ? (
+                  <Button asChild>
+                    <Link href="/dashboard/book">{bookLabel}</Link>
+                  </Button>
                 ) : (
-                  <>
-                    <Button asChild>
-                      <Link href="/pricing">
-                        <Lock className="h-4 w-4" />
-                        Upgrade to book
-                      </Link>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <Link href="/pricing">
-                        <Lock className="h-4 w-4" />
-                        Upgrade to message
-                      </Link>
-                    </Button>
-                  </>
+                  <UpgradeButton
+                    mentor={mentorSummary}
+                    billingEnabled={billingEnabled}
+                    source="dashboard"
+                  >
+                    Book a session
+                  </UpgradeButton>
                 )}
+                <Button variant="outline" asChild>
+                  <Link href="/dashboard/messages">Message</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -180,14 +206,22 @@ export default async function DashboardPage() {
                   <p className="text-[14px] text-text-2">
                     No upcoming sessions
                   </p>
-                  {isPaid ? (
+                  {entitlements.canBook ? (
                     <Button size="sm" className="mt-4" asChild>
-                      <Link href="/dashboard/book">Book one</Link>
+                      <Link href="/dashboard/book">
+                        {entitlements.canBookFreeSession ? 'Book your free one' : 'Book one'}
+                      </Link>
                     </Button>
                   ) : (
-                    <Button size="sm" className="mt-4" asChild>
-                      <Link href="/pricing">Upgrade to book</Link>
-                    </Button>
+                    <UpgradeButton
+                      size="sm"
+                      className="mt-4"
+                      mentor={mentorSummary}
+                      billingEnabled={billingEnabled}
+                      source="dashboard"
+                    >
+                      Book one
+                    </UpgradeButton>
                   )}
                 </div>
               )}
@@ -337,7 +371,24 @@ async function UnmatchedState({
           </p>
         </div>
 
-        {!isPaid && <UpgradeBanner />}
+        {!isPaid && (
+          <Card accent className="border-primary-light bg-primary-soft">
+            <CardContent className="flex items-start gap-3 p-5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-primary text-white">
+                <Gift className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[15px] font-semibold text-text">
+                  Your first session is free
+                </p>
+                <p className="mt-0.5 text-[13px] text-text-2">
+                  Once you&apos;re matched, messaging your mentor is free and so
+                  is your first 30-minute session.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <StudentRequestsPanel studentId={studentId} />
 

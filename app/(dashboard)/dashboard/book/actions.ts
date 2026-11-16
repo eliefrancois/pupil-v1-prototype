@@ -12,10 +12,17 @@ import {
 } from '@/lib/scheduling/slots'
 import { sendBookingConfirmation } from '@/lib/email/booking'
 import { captureServerEvent } from '@/lib/analytics/server'
+import { getStudentEntitlements } from '@/lib/entitlements'
 
 export type BookSessionResult =
-  | { ok: true; bookingId: string }
-  | { ok: false; error: string }
+  | { ok: true; bookingId: string; isFreeSession: boolean }
+  | { ok: false; error: string; code?: 'upgrade_required' }
+
+const UPGRADE_REQUIRED = {
+  ok: false,
+  error: 'You\u2019ve used your free session. Subscribe to book more.',
+  code: 'upgrade_required',
+} as const
 
 export async function bookSession(input: {
   mentorId: string
@@ -35,27 +42,14 @@ export async function bookSession(input: {
     return { ok: false, error: 'That slot has already passed.' }
   }
 
-  // Pull the student profile (matched mentor + opt-ins + credit usage).
-  const { data: studentProfile } = await supabase
-    .from('student_profiles')
-    .select('matched_mentor_id, sessions_total, sessions_used')
-    .eq('user_id', user.id)
-    .maybeSingle<{
-      matched_mentor_id: string | null
-      sessions_total: number
-      sessions_used: number
-    }>()
+  const entitlements = await getStudentEntitlements(user.id, supabase)
 
-  if (!studentProfile) {
-    return { ok: false, error: 'Student profile not found.' }
-  }
-  if (
-    !studentProfile.matched_mentor_id ||
-    studentProfile.matched_mentor_id !== input.mentorId
-  ) {
+  if (!entitlements.isMatched || entitlements.mentorId !== input.mentorId) {
     return { ok: false, error: 'You can only book your matched mentor.' }
   }
-  if (studentProfile.sessions_used >= studentProfile.sessions_total) {
+  if (!entitlements.canBook) return UPGRADE_REQUIRED
+  const isFreeSession = entitlements.canBookFreeSession
+  if (!isFreeSession && entitlements.sessionsRemaining === 0) {
     return {
       ok: false,
       error: 'You have no session credits remaining this period.',
@@ -111,26 +105,39 @@ export async function bookSession(input: {
       duration: 30,
       status: 'upcoming',
       slot_index: validation.key.slot,
+      is_free_trial: isFreeSession,
     })
     .select('id')
     .single()
 
   if (insertError || !inserted) {
-    // 23505 = unique_violation; the partial unique index caught a race.
+    // 23505 = unique_violation; a partial unique index caught a race.
     if (insertError?.code === '23505') {
+      if (insertError.message.includes('session_bookings_one_free_trial')) {
+        return UPGRADE_REQUIRED
+      }
       return { ok: false, error: 'That slot was just booked.' }
     }
+    // 42501 = the entitlement guard trigger refused the booking.
+    if (insertError?.code === '42501') return UPGRADE_REQUIRED
     return {
       ok: false,
       error: insertError?.message ?? 'Could not create booking.',
     }
   }
 
-  // Decrement credit. Atomically would be nicer (RPC) but for V0 the read-then-write is fine.
-  await supabase
-    .from('student_profiles')
-    .update({ sessions_used: studentProfile.sessions_used + 1 })
-    .eq('user_id', user.id)
+  // Plan credit only; the free session doesn't touch sessions_used.
+  if (!isFreeSession) {
+    const { data: usage } = await supabase
+      .from('student_profiles')
+      .select('sessions_used')
+      .eq('user_id', user.id)
+      .maybeSingle<{ sessions_used: number }>()
+    await supabase
+      .from('student_profiles')
+      .update({ sessions_used: (usage?.sessions_used ?? 0) + 1 })
+      .eq('user_id', user.id)
+  }
 
   // Fire-and-forget confirmation email. Failure here doesn't break the booking.
   try {
@@ -162,7 +169,14 @@ export async function bookSession(input: {
   await captureServerEvent(user.id, 'session_booked', {
     booking_id: inserted.id,
     mentor_id: input.mentorId,
+    is_free_session: isFreeSession,
   })
+  if (isFreeSession) {
+    await captureServerEvent(user.id, 'free_session_booked', {
+      booking_id: inserted.id,
+      mentor_id: input.mentorId,
+    })
+  }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/book')
@@ -170,7 +184,7 @@ export async function bookSession(input: {
   revalidatePath('/mentor')
   revalidatePath('/mentor/mentees')
 
-  return { ok: true, bookingId: inserted.id }
+  return { ok: true, bookingId: inserted.id, isFreeSession }
 }
 
 /** Helper for client toasts. Pure formatter, no I/O. */

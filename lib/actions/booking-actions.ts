@@ -21,7 +21,7 @@ export async function cancelBooking(input: {
 
   const { data: booking, error: fetchError } = await supabase
     .from('session_bookings')
-    .select('id, mentor_id, student_id, starts_at, status')
+    .select('id, mentor_id, student_id, starts_at, status, is_free_trial')
     .eq('id', input.bookingId)
     .single<{
       id: string
@@ -29,6 +29,7 @@ export async function cancelBooking(input: {
       student_id: string
       starts_at: string
       status: string
+      is_free_trial: boolean
     }>()
 
   if (fetchError || !booking) {
@@ -64,7 +65,8 @@ export async function cancelBooking(input: {
     return { ok: false, error: updateError.message }
   }
 
-  if (refund) {
+  // Free sessions are restored by the session_bookings_entitlement_guard trigger.
+  if (refund && !booking.is_free_trial) {
     // Decrement the student's used count, floor at 0.
     const { data: profile } = await supabase
       .from('student_profiles')

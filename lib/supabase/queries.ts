@@ -37,6 +37,7 @@ export type SessionBooking = {
   slot_index?: number | null
   cancelled_at?: string | null
   cancel_reason?: string | null
+  is_free_trial?: boolean
 }
 
 export type BookingDetail = SessionBooking & {
@@ -80,7 +81,7 @@ export async function getBookingDetail(
   const { data: booking } = await supabase
     .from('session_bookings')
     .select(
-      'id, mentor_id, student_id, starts_at, duration, status, created_at, slot_index, cancelled_at, cancel_reason'
+      'id, mentor_id, student_id, starts_at, duration, status, created_at, slot_index, cancelled_at, cancel_reason, is_free_trial'
     )
     .eq('id', bookingId)
     .maybeSingle<SessionBooking>()

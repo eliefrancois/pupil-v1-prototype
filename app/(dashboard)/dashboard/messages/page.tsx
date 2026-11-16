@@ -1,67 +1,21 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowLeft, Lock, MessageCircle } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import UpgradeBanner from '@/components/upgrade-banner'
 import ConversationView from '@/components/messaging/conversation-view'
 import { getCurrentUser } from '@/lib/supabase/get-user'
-import { getMatchedMentor, getStudentProfile } from '@/lib/supabase/queries'
+import { getMatchedMentor } from '@/lib/supabase/queries'
 import { getOrCreateConversation, getMessages } from '@/lib/supabase/messaging'
+import { getStudentEntitlements } from '@/lib/entitlements'
 
 export default async function MessagesPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/dashboard/messages')
 
-  const isPaid = user.subscription_status !== 'inactive'
-  const profile = await getStudentProfile(user.id)
-  const mentor = await getMatchedMentor(profile?.matched_mentor_id)
+  const entitlements = await getStudentEntitlements(user.id)
+  const mentor = await getMatchedMentor(entitlements.mentorId)
 
-  if (!isPaid) {
-    return (
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6 p-8">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-1.5 text-[13px] text-text-2 transition-colors hover:text-primary"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to dashboard
-          </Link>
-
-          <div>
-            <h1 className="display text-[28px] leading-tight">Messages</h1>
-          </div>
-
-          <UpgradeBanner />
-
-          <Card className="p-12 text-center">
-            <CardContent className="flex flex-col items-center p-0">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-primary">
-                <Lock className="h-5 w-5" />
-              </div>
-              <p className="text-[15px] font-semibold text-text">
-                Upgrade to message your mentor
-              </p>
-              <p className="mt-1 max-w-md text-[13px] text-text-2">
-                Send messages between sessions, ask quick questions, share
-                progress. All monitored for safety.
-              </p>
-              <Button className="mt-6" asChild>
-                <Link href="/pricing">
-                  <MessageCircle className="h-4 w-4" />
-                  Upgrade for $900/year
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
-  if (!mentor || !profile?.matched_mentor_id) {
+  if (!entitlements.canMessage || !entitlements.mentorId || !mentor) {
     return (
       <div className="h-full overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-6 p-8">
@@ -75,13 +29,14 @@ export default async function MessagesPage() {
           <h1 className="display text-[28px] leading-tight">Messages</h1>
           <p className="text-[14px] text-text-2">
             You&apos;ll be able to message your mentor once you&apos;re matched.
+            Messaging is free.
           </p>
         </div>
       </div>
     )
   }
 
-  const conversation = await getOrCreateConversation(user.id, profile.matched_mentor_id)
+  const conversation = await getOrCreateConversation(user.id, entitlements.mentorId)
   if (!conversation) {
     return (
       <div className="flex h-full items-center justify-center">

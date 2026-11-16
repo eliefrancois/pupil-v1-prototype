@@ -333,7 +333,20 @@ export default function SessionDetail({ booking, backHref }: SessionDetailProps)
           <DialogHeader>
             <DialogTitle>Cancel this session?</DialogTitle>
             <DialogDescription>
-              {willRefund ? (
+              {booking.is_free_trial && booking.viewerRole === 'student' ? (
+                willRefund ? (
+                  <>
+                    You&apos;re cancelling more than {CANCEL_REFUND_HOURS} hours
+                    out, so you&apos;ll get your free session back.{' '}
+                    {counterpartLabel} will be notified.
+                  </>
+                ) : (
+                  <>
+                    Cancelling within {CANCEL_REFUND_HOURS} hours uses your free
+                    session. {counterpartLabel} will be notified.
+                  </>
+                )
+              ) : willRefund ? (
                 <>
                   You&apos;re cancelling more than{' '}
                   {CANCEL_REFUND_HOURS} hours out, so your session credit will

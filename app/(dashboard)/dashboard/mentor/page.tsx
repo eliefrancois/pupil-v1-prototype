@@ -1,21 +1,27 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowLeft, Calendar, Lock, Search, Star, Users } from 'lucide-react'
+import { ArrowLeft, Calendar, Search, Star, Users } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import StatCard from '@/components/stat-card'
-import UpgradeBanner from '@/components/upgrade-banner'
+import PlanBanner from '@/components/billing/plan-banner'
+import UpgradeButton from '@/components/billing/upgrade-button'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { getMatchedMentor, getStudentProfile } from '@/lib/supabase/queries'
+import { getStudentEntitlements } from '@/lib/entitlements'
+import { isBillingConfigured } from '@/lib/billing/stripe'
+import { toMentorSummary } from '@/lib/billing/mentor-summary'
 
 export default async function MentorProfilePage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/dashboard/mentor')
 
-  const isPaid = user.subscription_status !== 'inactive'
-  const profile = await getStudentProfile(user.id)
+  const [profile, entitlements] = await Promise.all([
+    getStudentProfile(user.id),
+    getStudentEntitlements(user.id),
+  ])
   const mentor = await getMatchedMentor(profile?.matched_mentor_id)
 
   if (!mentor) {
@@ -54,6 +60,9 @@ export default async function MentorProfilePage() {
     )
   }
 
+  const mentorSummary = toMentorSummary(mentor)
+  const billingEnabled = isBillingConfigured()
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl space-y-8 p-8">
@@ -65,7 +74,12 @@ export default async function MentorProfilePage() {
           Back to dashboard
         </Link>
 
-        {!isPaid && <UpgradeBanner />}
+        <PlanBanner
+          entitlements={entitlements}
+          mentor={mentorSummary}
+          billingEnabled={billingEnabled}
+          source="mentor"
+        />
 
         <div className="grid gap-8 lg:grid-cols-5">
           <div className="space-y-5 lg:col-span-2">
@@ -79,31 +93,27 @@ export default async function MentorProfilePage() {
               />
             )}
             <div className="flex gap-3">
-              {isPaid ? (
-                <>
-                  <Button className="flex-1" asChild>
-                    <Link href="/dashboard/book">Book a session</Link>
-                  </Button>
-                  <Button variant="outline" className="flex-1" asChild>
-                    <Link href="/dashboard/messages">Message</Link>
-                  </Button>
-                </>
+              {entitlements.canBook ? (
+                <Button className="flex-1" asChild>
+                  <Link href="/dashboard/book">
+                    {entitlements.canBookFreeSession
+                      ? 'Book your free session'
+                      : 'Book a session'}
+                  </Link>
+                </Button>
               ) : (
-                <>
-                  <Button className="flex-1" asChild>
-                    <Link href="/pricing">
-                      <Lock className="h-4 w-4" />
-                      Upgrade to book
-                    </Link>
-                  </Button>
-                  <Button variant="outline" className="flex-1" asChild>
-                    <Link href="/pricing">
-                      <Lock className="h-4 w-4" />
-                      Upgrade to message
-                    </Link>
-                  </Button>
-                </>
+                <UpgradeButton
+                  className="flex-1"
+                  mentor={mentorSummary}
+                  billingEnabled={billingEnabled}
+                  source="mentor"
+                >
+                  Book a session
+                </UpgradeButton>
               )}
+              <Button variant="outline" className="flex-1" asChild>
+                <Link href="/dashboard/messages">Message</Link>
+              </Button>
             </div>
           </div>
 

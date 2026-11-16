@@ -1,15 +1,18 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowLeft, Calendar, Lock } from 'lucide-react'
+import { ArrowLeft, Calendar, CalendarCheck, Sparkles } from 'lucide-react'
 import { addDays } from 'date-fns'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import UpgradeBanner from '@/components/upgrade-banner'
+import UpgradeButton from '@/components/billing/upgrade-button'
+import type { MentorSummary } from '@/components/billing/upgrade-dialog'
 import { getCurrentUser } from '@/lib/supabase/get-user'
-import { getMatchedMentor, getStudentProfile } from '@/lib/supabase/queries'
+import { getMatchedMentor } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/server'
+import { getStudentEntitlements } from '@/lib/entitlements'
+import { isBillingConfigured } from '@/lib/billing/stripe'
+import { toMentorSummary } from '@/lib/billing/mentor-summary'
 import {
   BOOKING_HORIZON_DAYS,
   getOpenSlots,
@@ -22,57 +25,51 @@ export default async function BookPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/dashboard/book')
 
-  const isPaid = user.subscription_status !== 'inactive'
+  const entitlements = await getStudentEntitlements(user.id)
+  const mentor = await getMatchedMentor(entitlements.mentorId)
 
-  const profile = await getStudentProfile(user.id)
-  const mentor = await getMatchedMentor(profile?.matched_mentor_id)
-
-  // If no profile or no matched mentor: show the locked / unmatched state.
-  if (!profile || !mentor) {
-    return <NoMentorState isPaid={isPaid} />
+  if (!mentor) {
+    return <NoMentorState />
   }
 
-  if (!isPaid) {
-    return <PaywallState mentorName={mentor.full_name} />
+  const mentorSummary = toMentorSummary(mentor)
+
+  if (!entitlements.canBook) {
+    return entitlements.freeSession === 'booked' && entitlements.freeSessionBookingId ? (
+      <FreeSessionBookedState
+        mentor={mentorSummary}
+        bookingId={entitlements.freeSessionBookingId}
+        billingEnabled={isBillingConfigured()}
+      />
+    ) : (
+      <UpgradeState mentor={mentorSummary} billingEnabled={isBillingConfigured()} />
+    )
   }
 
   const supabase = createClient()
-  const [{ data: mentorRow }, { data: studentRow }, { data: existing }] =
-    await Promise.all([
-      supabase
-        .from('mentor_profiles')
-        .select('availability_slots, status, timezone')
-        .eq('user_id', mentor.user_id)
-        .single<{
-          availability_slots: unknown
-          status: string
-          timezone: string | null
-        }>(),
-      supabase
-        .from('student_profiles')
-        .select('sessions_total, sessions_used')
-        .eq('user_id', user.id)
-        .single<{
-          sessions_total: number
-          sessions_used: number
-        }>(),
-      supabase
-        .from('session_bookings')
-        .select('starts_at')
-        .eq('mentor_id', mentor.user_id)
-        .in('status', ['upcoming', 'completed'])
-        .gte('starts_at', new Date().toISOString())
-        .lte(
-          'starts_at',
-          addDays(new Date(), BOOKING_HORIZON_DAYS + 1).toISOString()
-        ),
-    ])
+  const [{ data: mentorRow }, { data: existing }] = await Promise.all([
+    supabase
+      .from('mentor_profiles')
+      .select('availability_slots, status, timezone')
+      .eq('user_id', mentor.user_id)
+      .single<{
+        availability_slots: unknown
+        status: string
+        timezone: string | null
+      }>(),
+    supabase
+      .from('session_bookings')
+      .select('starts_at')
+      .eq('mentor_id', mentor.user_id)
+      .in('status', ['upcoming', 'completed'])
+      .gte('starts_at', new Date().toISOString())
+      .lte(
+        'starts_at',
+        addDays(new Date(), BOOKING_HORIZON_DAYS + 1).toISOString()
+      ),
+  ])
 
   const mentorSlots = normalizeOptIns(mentorRow?.availability_slots)
-  const sessionsTotal = studentRow?.sessions_total ?? 24
-  const sessionsUsed = studentRow?.sessions_used ?? 0
-  const sessionsRemaining = Math.max(0, sessionsTotal - sessionsUsed)
-
   const mentorIsActive = mentorRow?.status === 'approved'
   const mentorHasSlots = mentorSlots.size > 0
 
@@ -93,8 +90,9 @@ export default async function BookPage() {
       mentorName={mentor.full_name}
       mentorUniversity={mentor.university}
       mentorTimezone={mentorRow?.timezone ?? null}
-      sessionsRemaining={sessionsRemaining}
-      sessionsTotal={sessionsTotal}
+      isFreeSession={entitlements.canBookFreeSession}
+      sessionsRemaining={entitlements.sessionsRemaining ?? 0}
+      sessionsTotal={entitlements.sessionsTotal}
       mentorIsActive={mentorIsActive}
       mentorHasSlots={mentorHasSlots}
       openSlots={openSlots.map((s) => ({
@@ -106,7 +104,7 @@ export default async function BookPage() {
   )
 }
 
-function NoMentorState({ isPaid }: { isPaid: boolean }) {
+function NoMentorState() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-6 p-8">
@@ -114,7 +112,6 @@ function NoMentorState({ isPaid }: { isPaid: boolean }) {
         <div>
           <h1 className="display text-[28px] leading-tight">Book a session</h1>
         </div>
-        {!isPaid && <UpgradeBanner />}
         <Card className="p-12 text-center">
           <CardContent className="flex flex-col items-center p-0">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-primary">
@@ -125,7 +122,7 @@ function NoMentorState({ isPaid }: { isPaid: boolean }) {
             </p>
             <p className="mt-1 max-w-md text-[13px] text-text-2">
               Once we match you with a mentor, you&apos;ll be able to book
-              sessions here.
+              sessions here. Your first one is free.
             </p>
             <div className="mt-6 flex gap-3">
               <Button asChild variant="outline">
@@ -142,31 +139,91 @@ function NoMentorState({ isPaid }: { isPaid: boolean }) {
   )
 }
 
-function PaywallState({ mentorName }: { mentorName: string }) {
+function FreeSessionBookedState({
+  mentor,
+  bookingId,
+  billingEnabled,
+}: {
+  mentor: MentorSummary
+  bookingId: string
+  billingEnabled: boolean
+}) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-6 p-8">
         <BackLink />
         <div>
           <h1 className="display text-[28px] leading-tight">Book a session</h1>
-          <p className="mt-1 text-[14px] text-text-2">With {mentorName}</p>
+          <p className="mt-1 text-[14px] text-text-2">With {mentor.fullName}</p>
         </div>
-        <UpgradeBanner />
         <Card className="p-12 text-center">
           <CardContent className="flex flex-col items-center p-0">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-primary">
-              <Lock className="h-5 w-5" />
+              <CalendarCheck className="h-5 w-5" />
             </div>
             <p className="text-[15px] font-semibold text-text">
-              Upgrade to book sessions
+              Your free session with {mentor.firstName} is booked
             </p>
             <p className="mt-1 max-w-md text-[13px] text-text-2">
-              Unlock 24 sessions per year, in-app messaging, and recordings
-              with the upgrade.
+              Want to keep meeting after that? Subscribe for up to 24 sessions a
+              year. Messaging stays free either way.
             </p>
-            <Button className="mt-6" asChild>
-              <Link href="/pricing">See plans</Link>
-            </Button>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button asChild variant="outline">
+                <Link href={`/dashboard/session/${bookingId}`}>View your session</Link>
+              </Button>
+              <UpgradeButton mentor={mentor} billingEnabled={billingEnabled} source="book">
+                See the plan
+              </UpgradeButton>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function UpgradeState({
+  mentor,
+  billingEnabled,
+}: {
+  mentor: MentorSummary
+  billingEnabled: boolean
+}) {
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-3xl space-y-6 p-8">
+        <BackLink />
+        <div>
+          <h1 className="display text-[28px] leading-tight">Book a session</h1>
+          <p className="mt-1 text-[14px] text-text-2">With {mentor.fullName}</p>
+        </div>
+        <Card className="p-12 text-center">
+          <CardContent className="flex flex-col items-center p-0">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-primary">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <p className="text-[15px] font-semibold text-text">
+              You&apos;ve used your free session
+            </p>
+            <p className="mt-1 max-w-md text-[13px] text-text-2">
+              Subscribe to keep meeting with {mentor.firstName}, up to 24
+              sessions a year. You can still message {mentor.firstName} for
+              free.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button asChild variant="outline">
+                <Link href="/dashboard/messages">Message {mentor.firstName}</Link>
+              </Button>
+              <UpgradeButton
+                mentor={mentor}
+                billingEnabled={billingEnabled}
+                source="book"
+                autoOpen
+              >
+                Subscribe
+              </UpgradeButton>
+            </div>
           </CardContent>
         </Card>
       </div>

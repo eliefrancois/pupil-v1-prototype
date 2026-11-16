@@ -1,10 +1,8 @@
-'use client'
-
 import Link from 'next/link'
 import Image from 'next/image'
 import { Calendar, CircleCheck, Clock, PenLine, Star, Users } from 'lucide-react'
 
-import { MENTORS } from '@/lib/mock-data'
+import { getFeaturedMentors, type FeaturedMentor } from '@/lib/featured-mentors'
 import { FAQ_ITEMS } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,9 +15,47 @@ import {
 } from '@/components/ui/accordion'
 import { UniversityMarquee } from '@/components/marketing/university-marquee'
 
+export const revalidate = 3600
+
 /* ---------- Hero ---------- */
 
-function HeroSection() {
+function HeroMentorCard({
+  mentor,
+  className,
+}: {
+  mentor: FeaturedMentor
+  className: string
+}) {
+  return (
+    <Card className={className}>
+      <div className="flex items-center gap-3">
+        <Image
+          src={mentor.photoUrl}
+          alt={mentor.displayName}
+          width={48}
+          height={48}
+          className="h-12 w-12 rounded-full object-cover"
+        />
+        <div>
+          <p className="text-[14px] font-semibold text-text">
+            {mentor.displayName}
+          </p>
+          <p className="text-[12px] text-text-2">{mentor.university}</p>
+        </div>
+      </div>
+      {mentor.major && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          <Badge variant="purple" className="text-[10px]">
+            {mentor.major}
+          </Badge>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function HeroSection({ mentors }: { mentors: FeaturedMentor[] }) {
+  const [first, second] = mentors
   return (
     <section className="relative overflow-hidden bg-bg py-20 md:py-28">
       <div className="mx-auto max-w-page px-6">
@@ -67,75 +103,18 @@ function HeroSection() {
           </div>
 
           <div className="relative hidden h-[520px] lg:block">
-            <Card className="absolute left-8 top-4 w-64 p-4 shadow-lg">
-              <div className="flex items-center gap-3">
-                <Image
-                  src={MENTORS[0].photo}
-                  alt={MENTORS[0].name}
-                  width={48}
-                  height={48}
-                  className="h-12 w-12 rounded-full object-cover"
-                />
-                <div>
-                  <p className="text-[14px] font-semibold text-text">
-                    {MENTORS[0].name}
-                  </p>
-                  <p className="text-[12px] text-text-2">
-                    {MENTORS[0].university}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-1 text-[12px] text-text-2">
-                <Star className="h-3.5 w-3.5 fill-warning text-warning" />
-                <span className="font-medium text-text">
-                  {MENTORS[0].rating}
-                </span>
-                <span className="mx-1 text-text-3">&middot;</span>
-                <span>{MENTORS[0].sessions} sessions</span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {MENTORS[0].tags.slice(0, 3).map((tag) => (
-                  <Badge key={tag} variant="purple" className="text-[10px]">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="absolute right-4 top-40 w-64 p-4 shadow-lg">
-              <div className="flex items-center gap-3">
-                <Image
-                  src={MENTORS[2].photo}
-                  alt={MENTORS[2].name}
-                  width={48}
-                  height={48}
-                  className="h-12 w-12 rounded-full object-cover"
-                />
-                <div>
-                  <p className="text-[14px] font-semibold text-text">
-                    {MENTORS[2].name}
-                  </p>
-                  <p className="text-[12px] text-text-2">
-                    {MENTORS[2].university}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-1 text-[12px] text-text-2">
-                <Star className="h-3.5 w-3.5 fill-warning text-warning" />
-                <span className="font-medium text-text">
-                  {MENTORS[2].rating}
-                </span>
-                <span className="mx-1 text-text-3">&middot;</span>
-                <span>{MENTORS[2].sessions} sessions</span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {MENTORS[2].tags.slice(0, 3).map((tag) => (
-                  <Badge key={tag} variant="purple" className="text-[10px]">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </Card>
+            {first && (
+              <HeroMentorCard
+                mentor={first}
+                className="absolute left-8 top-4 w-64 p-4 shadow-lg"
+              />
+            )}
+            {second && (
+              <HeroMentorCard
+                mentor={second}
+                className="absolute right-4 top-40 w-64 p-4 shadow-lg"
+              />
+            )}
 
             <Card className="absolute bottom-8 left-16 w-72 p-4 shadow-lg">
               <div className="flex items-center gap-3">
@@ -147,7 +126,8 @@ function HeroSection() {
                     Session Reminder
                   </p>
                   <p className="text-[12px] text-text-2">
-                    Tomorrow at 4:30 PM with {MENTORS[0].name.split(' ')[0]}
+                    Tomorrow at 4:30 PM with{' '}
+                    {first ? first.firstName : 'your mentor'}
                   </p>
                 </div>
               </div>
@@ -280,9 +260,7 @@ function OurApproachSection() {
 
 /* ---------- Mentors ---------- */
 
-function MentorsSection() {
-  const featured = MENTORS.slice(0, 4)
-
+function MentorsSection({ mentors }: { mentors: FeaturedMentor[] }) {
   return (
     <section
       id="mentors"
@@ -296,32 +274,30 @@ function MentorsSection() {
           </h2>
         </div>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {featured.map((mentor) => (
-            <Card key={mentor.id} className="p-5" hover>
-              <Image
-                src={mentor.photo}
-                alt={mentor.name}
-                width={400}
-                height={400}
-                className="h-44 w-full rounded-[var(--radius-sm)] object-cover"
-              />
-              <h3 className="mt-4 text-[15px] font-semibold text-text">
-                {mentor.name}
-              </h3>
-              <p className="text-[13px] text-text-2">{mentor.university}</p>
-              <p className="text-[12px] text-text-3">{mentor.major}</p>
-              <div className="mt-3 flex items-center gap-2 text-[13px]">
-                <div className="flex items-center gap-1">
-                  <Star className="h-3.5 w-3.5 fill-warning text-warning" />
-                  <span className="font-medium text-text">{mentor.rating}</span>
-                </div>
-                <span className="text-text-3">|</span>
-                <span className="text-text-2">{mentor.sessions} sessions</span>
-              </div>
-            </Card>
-          ))}
-        </div>
+        {mentors.length > 0 && (
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {mentors.map((mentor) => (
+              <Link key={mentor.id} href={`/mentors/${mentor.id}`}>
+                <Card className="h-full p-5" hover>
+                  <Image
+                    src={mentor.photoUrl}
+                    alt={mentor.displayName}
+                    width={400}
+                    height={400}
+                    className="h-44 w-full rounded-[var(--radius-sm)] object-cover"
+                  />
+                  <h3 className="mt-4 text-[15px] font-semibold text-text">
+                    {mentor.displayName}
+                  </h3>
+                  <p className="text-[13px] text-text-2">{mentor.university}</p>
+                  {mentor.major && (
+                    <p className="text-[12px] text-text-3">{mentor.major}</p>
+                  )}
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
 
         <div className="mt-10 text-center">
           <Button variant="secondary" asChild>
@@ -492,14 +468,16 @@ function BringPupilToSchoolSection() {
 
 /* ---------- Page ---------- */
 
-export default function HomePage() {
+export default async function HomePage() {
+  const mentors = await getFeaturedMentors()
+
   return (
     <>
-      <HeroSection />
+      <HeroSection mentors={mentors} />
       <UniversityMarquee />
       <HowItWorksSection />
       <OurApproachSection />
-      <MentorsSection />
+      <MentorsSection mentors={mentors} />
       <TestimonialsSection />
       <PricingTeaserSection />
       <FAQSection />

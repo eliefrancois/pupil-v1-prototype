@@ -100,6 +100,12 @@ const MOTIVATIONS = [
 
 const BIO_MAX = 280
 
+const OTHER_COLLEGE = '__other__'
+const OTHER_COLLEGE_OPTION: ComboboxOption = {
+  value: OTHER_COLLEGE,
+  label: 'Other, type your school',
+}
+
 export type ExistingProfile = {
   university: string | null
   major: string | null
@@ -187,10 +193,21 @@ export default function MentorOnboardingForm({
   const [collegeId, setCollegeId] = useState(() => {
     if (existingProfile?.college_id) return existingProfile.college_id
     if (existingProfile?.university) {
-      return collegeIdByName.get(existingProfile.university.toLowerCase()) ?? ''
+      return (
+        collegeIdByName.get(existingProfile.university.toLowerCase()) ??
+        OTHER_COLLEGE
+      )
     }
     return ''
   })
+  const [otherUniversity, setOtherUniversity] = useState(() =>
+    existingProfile?.university &&
+    !existingProfile.college_id &&
+    !collegeIdByName.has(existingProfile.university.toLowerCase())
+      ? existingProfile.university
+      : ''
+  )
+  const isOtherCollege = collegeId === OTHER_COLLEGE
   const [yearInSchool, setYearInSchool] = useState(
     existingProfile?.year_in_school ?? ''
   )
@@ -271,6 +288,7 @@ export default function MentorOnboardingForm({
   const canContinueStep1 =
     fullName.trim().length > 0 &&
     collegeId.length > 0 &&
+    (!isOtherCollege || otherUniversity.trim().length >= 2) &&
     yearInSchool.length > 0 &&
     majorId.length > 0 &&
     gradYear.length === 4
@@ -343,10 +361,13 @@ export default function MentorOnboardingForm({
           .eq('id', userId)
       }
 
-      const collegeRecord = collegeById.get(collegeId)
+      const collegeRecord = isOtherCollege ? null : collegeById.get(collegeId)
+      const universityName = isOtherCollege
+        ? otherUniversity.trim()
+        : collegeRecord?.name
       const majorRecord = majorById.get(majorId)
 
-      if (!collegeRecord || !majorRecord) {
+      if (!universityName || !majorRecord) {
         setError('Please select a valid college and major.')
         setSubmitting(false)
         return
@@ -357,8 +378,8 @@ export default function MentorOnboardingForm({
         .upsert(
           {
             user_id: userId,
-            university: collegeRecord.name,
-            college_id: collegeRecord.id,
+            university: universityName,
+            college_id: collegeRecord?.id ?? null,
             major: majorRecord.name,
             major_id: majorRecord.id,
             grad_year: parseInt(gradYear, 10),
@@ -454,6 +475,8 @@ export default function MentorOnboardingForm({
             collegeId={collegeId}
             setCollegeId={setCollegeId}
             collegeOptions={collegeOptions}
+            otherUniversity={otherUniversity}
+            setOtherUniversity={setOtherUniversity}
             yearInSchool={yearInSchool}
             setYearInSchool={setYearInSchool}
             majorId={majorId}
@@ -621,6 +644,8 @@ function Step1Academic({
   collegeId,
   setCollegeId,
   collegeOptions,
+  otherUniversity,
+  setOtherUniversity,
   yearInSchool,
   setYearInSchool,
   majorId,
@@ -635,6 +660,8 @@ function Step1Academic({
   collegeId: string
   setCollegeId: (v: string) => void
   collegeOptions: ComboboxOption[]
+  otherUniversity: string
+  setOtherUniversity: (v: string) => void
   yearInSchool: string
   setYearInSchool: (v: string) => void
   majorId: string
@@ -686,18 +713,25 @@ function Step1Academic({
             onValueChange={setCollegeId}
             placeholder="Search for your school..."
             searchPlaceholder="Search 1,000+ colleges..."
-            emptyMessage="No colleges match. Try a different name."
+            emptyMessage="No colleges match. Pick Other to type yours in."
+            pinnedOption={OTHER_COLLEGE_OPTION}
           />
-          <p className="text-[12px] text-text-3">
-            Don&apos;t see your school?{' '}
-            <a
-              href="mailto:support@getpupil.com?subject=Add my school"
-              className="text-primary hover:underline"
-            >
-              Let us know
-            </a>{' '}
-            and we&apos;ll add it.
-          </p>
+          {collegeId === OTHER_COLLEGE ? (
+            <Input
+              id="other-university"
+              aria-label="School name"
+              value={otherUniversity}
+              onChange={(e) => setOtherUniversity(e.target.value)}
+              placeholder="Full name of your school"
+              maxLength={120}
+              autoFocus
+            />
+          ) : (
+            <p className="text-[12px] text-text-3">
+              Don&apos;t see your school? Pick Other at the bottom of the list
+              and type it in.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">

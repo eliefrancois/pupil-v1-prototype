@@ -78,6 +78,7 @@ export default function MentorReviewRow({
   const [confirmingHide, setConfirmingHide] = useState(false)
 
   const isGhost = mentor.claim_status === 'ghost'
+  const schoolNotInList = !isGhost && !!mentor.university && !mentor.college_id
   // Imported profiles that were hidden never claimed an account; reactivating
   // would list them as approved mentors, so they can only return by claiming.
   const isHiddenFromDirectory =
@@ -238,6 +239,11 @@ export default function MentorReviewRow({
                 <span className="inline-flex items-center gap-1">
                   <School className="h-3.5 w-3.5 text-text-3" />
                   {mentor.university}
+                  {schoolNotInList && (
+                    <Badge variant="outline" className="ml-1 text-[10px]">
+                      School not in list
+                    </Badge>
+                  )}
                 </span>
               )}
               {mentor.year_in_school && (

@@ -26,7 +26,7 @@ const STATUS_FILTERS = [
 const PAGE_SIZE = 50
 
 const MENTOR_LIST_SELECT =
-  'user_id, university, major, grad_year, year_in_school, bio, photo_url, linkedin_url, tags, max_mentees, active_mentees_count, sessions_count, rating, status, claim_status, submitted_at, reviewed_at, reviewed_by, review_notes, motivations, identity_json, commitment, timezone, availability_schedule, availability_slots'
+  'user_id, university, college_id, major, grad_year, year_in_school, bio, photo_url, linkedin_url, tags, max_mentees, active_mentees_count, sessions_count, rating, status, claim_status, submitted_at, reviewed_at, reviewed_by, review_notes, motivations, identity_json, commitment, timezone, availability_schedule, availability_slots'
 
 // Double-quoted so commas/parens in the term can't break PostgREST's or() syntax.
 function searchOrFilter(query: string) {

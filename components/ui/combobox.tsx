@@ -42,6 +42,8 @@ export interface ComboboxProps {
    * where rendering 1500 options up-front would jank scrolling.
    */
   maxRendered?: number
+  /** Always shown below the results, even when the search matches nothing. */
+  pinnedOption?: ComboboxOption
 }
 
 export function Combobox({
@@ -57,13 +59,17 @@ export function Combobox({
   contentClassName,
   id,
   maxRendered = 200,
+  pinnedOption,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
 
   const selected = React.useMemo(
-    () => options.find((o) => o.value === value),
-    [options, value]
+    () =>
+      pinnedOption?.value === value
+        ? pinnedOption
+        : options.find((o) => o.value === value),
+    [options, value, pinnedOption]
   )
 
   const visibleOptions = React.useMemo(() => {
@@ -140,6 +146,24 @@ export function Combobox({
                   Showing {visibleOptions.length} of {options.length}. Type to
                   search the full list.
                 </p>
+              )}
+              {pinnedOption && (
+                <CommandGroup forceMount className="border-t border-border">
+                  <CommandItem
+                    forceMount
+                    value={pinnedOption.value}
+                    onSelect={() => {
+                      onValueChange(pinnedOption.value)
+                      setOpen(false)
+                      setSearch('')
+                    }}
+                  >
+                    <span className="flex-1 truncate">{pinnedOption.label}</span>
+                    {value === pinnedOption.value && (
+                      <Check className="ml-2 h-4 w-4 text-primary" />
+                    )}
+                  </CommandItem>
+                </CommandGroup>
               )}
             </CommandList>
           </Command>

@@ -3,6 +3,7 @@ export type MentorReviewItem = {
   full_name: string
   email: string
   university: string | null
+  college_id: string | null
   major: string | null
   grad_year: number | null
   year_in_school: string | null

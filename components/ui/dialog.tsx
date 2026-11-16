@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -10,87 +12,69 @@ interface DialogProps {
   children: React.ReactNode
 }
 
-const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onOpenChange(false)
-    }
-    if (open) {
-      document.addEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'hidden'
-    }
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = ''
-    }
-  }, [open, onOpenChange])
-
-  if (!open) return null
-
-  return <>{children}</>
-}
+const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => (
+  <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    {children}
+  </DialogPrimitive.Root>
+)
 Dialog.displayName = 'Dialog'
 
 const DialogOverlay = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { onClose?: () => void }
->(({ className, onClose, ...props }, ref) => (
-  <div
+  React.ElementRef<typeof DialogPrimitive.Overlay>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
       'fixed inset-0 z-50 bg-[rgba(26,26,46,0.45)] backdrop-blur-sm animate-in fade-in-0',
       className
     )}
-    onClick={onClose}
     {...props}
   />
 ))
 DialogOverlay.displayName = 'DialogOverlay'
 
-interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
+interface DialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** Called on outside click and the close button. Without it, outside clicks do nothing and no close button renders. */
   onClose?: () => void
 }
 
-const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, children, onClose, ...props }, ref) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <DialogOverlay onClose={onClose} />
-      <div
+const DialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  DialogContentProps
+>(({ className, children, onClose, onPointerDownOutside, ...props }, ref) => (
+  <DialogPrimitive.Portal>
+    <DialogOverlay />
+    <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+      <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'relative z-50 grid w-full max-w-lg gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-6 shadow-lg animate-in fade-in-0 zoom-in-95',
+          'pointer-events-auto relative z-50 grid w-full max-w-lg gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-6 shadow-lg animate-in fade-in-0 zoom-in-95 focus:outline-none',
           className
         )}
+        onPointerDownOutside={(event) => {
+          onPointerDownOutside?.(event)
+          event.preventDefault()
+          onClose?.()
+        }}
         {...props}
       >
         {children}
         {onClose && (
           <button
-            className="absolute right-4 top-4 rounded-sm text-text-2 transition-colors hover:text-text focus:outline-none"
+            type="button"
+            className="absolute right-4 top-4 rounded-sm text-text-2 transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             onClick={onClose}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
+            <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </button>
         )}
-      </div>
+      </DialogPrimitive.Content>
     </div>
-  )
-)
+  </DialogPrimitive.Portal>
+))
 DialogContent.displayName = 'DialogContent'
 
 const DialogHeader = React.forwardRef<
@@ -124,10 +108,10 @@ const DialogFooter = React.forwardRef<
 DialogFooter.displayName = 'DialogFooter'
 
 const DialogTitle = React.forwardRef<
-  HTMLHeadingElement,
-  React.HTMLAttributes<HTMLHeadingElement>
+  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <h2
+  <DialogPrimitive.Title
     ref={ref}
     className={cn(
       'text-lg font-semibold leading-tight tracking-tight text-text',
@@ -139,10 +123,10 @@ const DialogTitle = React.forwardRef<
 DialogTitle.displayName = 'DialogTitle'
 
 const DialogDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
+  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <p
+  <DialogPrimitive.Description
     ref={ref}
     className={cn('text-sm text-text-2', className)}
     {...props}

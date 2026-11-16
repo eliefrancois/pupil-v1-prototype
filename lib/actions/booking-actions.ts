@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { CANCEL_REFUND_HOURS } from '@/lib/scheduling/canonical-slots'
 
 export type CancelBookingResult =
@@ -67,15 +68,16 @@ export async function cancelBooking(input: {
 
   // Free sessions are restored by the session_bookings_entitlement_guard trigger.
   if (refund && !booking.is_free_trial) {
-    // Decrement the student's used count, floor at 0.
-    const { data: profile } = await supabase
+    // Credits are server-managed, and mentors can't read the student's profile.
+    const service = createServiceClient()
+    const { data: profile } = await service
       .from('student_profiles')
       .select('sessions_used')
       .eq('user_id', booking.student_id)
       .maybeSingle<{ sessions_used: number }>()
 
     const next = Math.max(0, (profile?.sessions_used ?? 0) - 1)
-    await supabase
+    await service
       .from('student_profiles')
       .update({ sessions_used: next })
       .eq('user_id', booking.student_id)

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import {
   createMeetingToken,
   createOrGetRoom,
@@ -123,7 +124,7 @@ export async function joinSession(
     roomUrl = room.url
 
     if (booking.daily_room_url !== room.url) {
-      await supabase
+      await createServiceClient()
         .from('session_bookings')
         .update({
           daily_room_name: room.name,

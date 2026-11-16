@@ -2,6 +2,7 @@
 
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
+import { captureServerEvent } from '@/lib/analytics/server'
 import { notifyGhostMentorToClaim } from '@/lib/email/notifications'
 import { getSiteUrl } from '@/lib/site-url'
 
@@ -117,6 +118,8 @@ export async function claimProfile(
         'Account was created but profile finalization failed. Contact support.',
     }
   }
+
+  await captureServerEvent(profile.user_id, 'mentor_profile_claimed')
 
   return { ok: true, email: updated.user.email }
 }

@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 
+import PostHogProvider from '@/components/analytics/posthog-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
 
@@ -36,7 +37,9 @@ export default function RootLayout({
       className={`${GeistSans.variable} ${GeistMono.variable} ${newsreader.variable}`}
     >
       <body className="antialiased">
-        <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+        <PostHogProvider>
+          <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+        </PostHogProvider>
       </body>
     </html>
   )

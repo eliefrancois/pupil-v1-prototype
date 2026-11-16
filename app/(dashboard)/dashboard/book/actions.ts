@@ -11,6 +11,7 @@ import {
   validateBookingSlot,
 } from '@/lib/scheduling/slots'
 import { sendBookingConfirmation } from '@/lib/email/booking'
+import { captureServerEvent } from '@/lib/analytics/server'
 
 export type BookSessionResult =
   | { ok: true; bookingId: string }
@@ -157,6 +158,11 @@ export async function bookSession(input: {
   } catch (err) {
     console.warn('[booking] confirmation email failed:', err)
   }
+
+  await captureServerEvent(user.id, 'session_booked', {
+    booking_id: inserted.id,
+    mentor_id: input.mentorId,
+  })
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/book')

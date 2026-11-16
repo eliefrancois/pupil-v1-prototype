@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { captureServerEvent } from '@/lib/analytics/server'
 
 export async function POST(request: NextRequest) {
   const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    await captureServerEvent(user.id, 'checkout_started', {
+      stripe_session_id: session.id,
+    })
 
     return NextResponse.json({ url: session.url })
   } catch {

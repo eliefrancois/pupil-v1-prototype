@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { MAX_MATCH_REQUESTS } from '@/lib/constants'
 import { sendGhostClaimEmail } from '@/lib/matching/ghost-claim-email'
 import { notifyAdminOfMatchRequest } from '@/lib/email/notifications'
+import { captureServerEvent } from '@/lib/analytics/server'
 
 /**
  * Student-side match request flow.
@@ -136,6 +137,12 @@ export async function createMatchRequest({
     inserted.id,
     trimmed
   )
+
+  await captureServerEvent(user.id, 'match_request_created', {
+    request_id: inserted.id,
+    mentor_id: mentorId,
+    remaining_requests: remaining,
+  })
 
   revalidatePath('/dashboard')
   revalidatePath('/admin/matching')

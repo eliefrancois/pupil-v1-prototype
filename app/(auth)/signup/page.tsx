@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
+import { captureEvent, identifyUser } from '@/lib/analytics/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -79,6 +80,9 @@ export default function SignupPage() {
         setLoading(false)
         return
       }
+
+      identifyUser(data.user.id, { role: 'student' })
+      captureEvent('student_signed_up', { email_confirmation_required: !data.session })
 
       // public.users row is created automatically by the on_auth_user_created
       // trigger, so the client doesn't insert anything.

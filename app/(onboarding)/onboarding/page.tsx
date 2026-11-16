@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { captureEvent } from '@/lib/analytics/client'
 import BrandMark from '@/components/brand-mark'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -178,6 +179,7 @@ export default function OnboardingPage() {
     })
 
     await supabase.from('users').update({ onboarding_complete: true }).eq('id', user.id)
+    captureEvent('student_onboarding_completed', { grade: parseInt(grade) || null })
 
     router.push('/dashboard')
   }

@@ -118,6 +118,7 @@ const VARIANTS: Record<ReminderKey, (ctx: ReminderContext) => [Variant, Variant,
 
   student_say_hi: (ctx) => {
     const mentor = ctx.mentorFirstName ?? 'your mentor'
+    const free = ctx.firstSessionFree === true
     return [
       {
         subject: `${mentor} is waiting to hear from you`,
@@ -125,6 +126,9 @@ const VARIANTS: Record<ReminderKey, (ctx: ReminderContext) => [Variant, Variant,
         paragraphs: [
           `You're matched with ${mentor}${fromSchool(ctx.mentorSchool)}. Mentors on Pupil can only reply, so the first message has to come from you.`,
           "It doesn't need to be long. Say hi, what grade you're in, and one thing you're wondering about college.",
+          ...(free
+            ? [`Messaging is free, and so is your first session with ${mentor} when you're ready to talk.`]
+            : []),
         ],
       },
       {
@@ -133,6 +137,7 @@ const VARIANTS: Record<ReminderKey, (ctx: ReminderContext) => [Variant, Variant,
         paragraphs: [
           `A two line message is enough to get started. Tell ${mentor} what grade you're in and what you want help with.`,
           `${mentor} can't message you first, so it's on you to break the ice.`,
+          ...(free ? ['Your first session is free too, no card needed.'] : []),
         ],
       },
       {
@@ -140,7 +145,9 @@ const VARIANTS: Record<ReminderKey, (ctx: ReminderContext) => [Variant, Variant,
         heading: `${hi(ctx)}, ${mentor} is still your mentor`,
         paragraphs: [
           `${mentor} is happy to help with anything college related, from picking schools to what dorm life is actually like.`,
-          'Whenever you are ready, send a quick message to get things going.',
+          free
+            ? 'Whenever you are ready, send a quick message to get things going. Your first session is free, so there is nothing to lose.'
+            : 'Whenever you are ready, send a quick message to get things going.',
         ],
       },
     ]
@@ -148,13 +155,18 @@ const VARIANTS: Record<ReminderKey, (ctx: ReminderContext) => [Variant, Variant,
 
   student_book_first_session: (ctx) => {
     const mentor = ctx.mentorFirstName ?? 'your mentor'
+    const free = ctx.firstSessionFree === true
     return [
       {
-        subject: `Book your first session with ${mentor}`,
+        subject: free
+          ? `Your first session with ${mentor} is free`
+          : `Book your first session with ${mentor}`,
         heading: `Ready to talk with ${mentor}?`,
         paragraphs: [
           `You and ${mentor} have been messaging, which is great. The next step is a 30 minute video call.`,
-          `Pick a time that works from ${mentor}'s open slots.`,
+          free
+            ? `Your first session is free. Pick a time that works from ${mentor}'s open slots.`
+            : `Pick a time that works from ${mentor}'s open slots.`,
         ],
       },
       {
@@ -162,6 +174,7 @@ const VARIANTS: Record<ReminderKey, (ctx: ReminderContext) => [Variant, Variant,
         heading: `${hi(ctx)}, ${mentor} has open times`,
         paragraphs: [
           'A first call is the easiest way to get real answers about college, and it only takes 30 minutes.',
+          ...(free ? ['Your first session is free, no card needed.'] : []),
         ],
       },
       {
@@ -169,6 +182,7 @@ const VARIANTS: Record<ReminderKey, (ctx: ReminderContext) => [Variant, Variant,
         heading: `${hi(ctx)}, still want to meet ${mentor}?`,
         paragraphs: [
           `You haven't booked a call with ${mentor} yet. Whenever you're ready, pick a slot and you're set.`,
+          ...(free ? ["Your first session is free, so there's nothing to lose."] : []),
         ],
       },
     ]

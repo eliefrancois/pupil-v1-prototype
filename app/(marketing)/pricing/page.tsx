@@ -1,62 +1,31 @@
-'use client'
-
-import { useState } from 'react'
 import Link from 'next/link'
-import { Check, Loader as Loader2, Shield } from 'lucide-react'
+import { Check, Gift, Shield } from 'lucide-react'
 
-import { createClient } from '@/lib/supabase/client'
-import { useCurrentUser } from '@/hooks/use-current-user'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { getCurrentUser } from '@/lib/supabase/get-user'
+import { planFromStatus } from '@/lib/entitlements'
+import { isBillingConfigured, PRICE_PER_MONTH_USD } from '@/lib/billing/stripe'
+
+import PricingCta from './pricing-cta'
 
 const features = [
   'Mentor matching within 24 to 48 hours',
-  'Up to 24 1:1 sessions per year',
-  'In-app messaging monitored for safety',
+  'First session free, no card needed',
+  'Up to 24 1:1 sessions per year, about 2 a month',
+  'Messaging with your mentor, monitored for safety',
   'Session recordings and transcripts',
-  'Pre-call icebreakers tailored to your student',
-  'Post-call breakdowns with action items',
+  'Session prep and recaps with action items',
   '90-day refund guarantee',
 ]
 
-export default function PricingPage() {
-  const [loading, setLoading] = useState(false)
-  const { user, isPaid, loading: userLoading } = useCurrentUser()
-
-  const handleCheckout = async () => {
-    setLoading(true)
-    const supabase = createClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
-    if (!authUser) {
-      window.location.href = '/signup?next=/pricing'
-      return
-    }
-
-    try {
-      const res = await fetch('/api/checkout', { method: 'POST' })
-      const data = await res.json()
-
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        setLoading(false)
-        alert(data.error || 'Something went wrong. Please try again.')
-      }
-    } catch {
-      setLoading(false)
-      alert('Something went wrong. Please try again.')
-    }
-  }
-
-  const ctaLabel = !user
-    ? 'Sign up free, then upgrade'
-    : isPaid
-      ? "You're already a member"
-      : 'Upgrade for $900/year'
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: { checkout?: string }
+}) {
+  const user = await getCurrentUser()
+  const plan = user ? planFromStatus(user.subscription_status) : null
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
@@ -73,10 +42,18 @@ export default function PricingPage() {
           <Badge variant="default">Early Access</Badge>
 
           <div className="mt-6">
-            <span className="display text-[56px] leading-none">$900</span>
-            <span className="text-[16px] font-medium text-text-2">/year</span>
+            <span className="display text-[56px] leading-none">${PRICE_PER_MONTH_USD}</span>
+            <span className="text-[16px] font-medium text-text-2">/month</span>
           </div>
-          <p className="mt-1 text-[13px] text-text-3">$75/month equivalent</p>
+
+          <div className="mt-4 flex items-start gap-2.5 rounded-[var(--radius-sm)] bg-primary-soft px-3 py-2.5">
+            <Gift className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-[13px] text-text">
+              <span className="font-semibold">Your first session is free.</span>{' '}
+              Get matched, message your mentor, and book your first call before
+              you pay anything.
+            </p>
+          </div>
 
           <ul className="mt-8 space-y-3">
             {features.map((feature) => (
@@ -88,35 +65,18 @@ export default function PricingPage() {
           </ul>
 
           <div className="mt-10">
-            <Button
-              size="lg"
-              className="w-full"
-              onClick={handleCheckout}
-              disabled={loading || userLoading || isPaid}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Redirecting to checkout...
-                </>
-              ) : (
-                ctaLabel
-              )}
-            </Button>
-            {!user && !userLoading && (
-              <p className="mt-3 text-center text-[12px] text-text-2">
-                <Link href="/login" className="text-primary hover:underline">
-                  Already have an account? Log in
-                </Link>
-              </p>
-            )}
+            <PricingCta
+              plan={plan}
+              billingEnabled={isBillingConfigured()}
+              autoCheckout={searchParams.checkout === '1'}
+            />
           </div>
 
           <div className="mt-6 flex items-start gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-2 p-3">
             <Shield className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-[12px] text-text-2">
-              90-day refund guarantee if we can&apos;t match you and get your
-              first session scheduled within 90 days.
+              90-day refund guarantee. If Pupil isn&apos;t working for your
+              family, email dario@getpupil.com within 90 days for a full refund.
             </p>
           </div>
         </CardContent>

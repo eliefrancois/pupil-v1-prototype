@@ -69,7 +69,14 @@ export default function SignupForm() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizeEmail(email),
         password,
-        options: { data: { full_name: fullName, role: 'student' } },
+        options: {
+          data: { full_name: fullName, role: 'student' },
+          ...(next
+            ? {
+                emailRedirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(next)}`,
+              }
+            : {}),
+        },
       })
 
       if (signUpError) {

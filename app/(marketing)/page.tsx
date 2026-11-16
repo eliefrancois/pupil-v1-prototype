@@ -380,17 +380,19 @@ function PricingTeaserSection() {
             Early Access
           </Badge>
           <p className="display text-[56px] leading-none">
-            $900
-            <span className="text-[16px] font-medium text-text-2">/year</span>
+            $99
+            <span className="text-[16px] font-medium text-text-2">/month</span>
           </p>
           <p className="mt-3 text-[14px] text-text-2">
-            Up to 24 sessions &middot; 90-day refund guarantee
+            First session free &middot; Up to 24 sessions a year &middot;
+            90-day refund guarantee
           </p>
           <Button size="lg" className="mt-6" asChild>
             <Link href="/signup">Get started free</Link>
           </Button>
           <p className="mt-3 text-[12px] text-text-3">
-            Sign up free, upgrade when you&apos;re ready
+            Messaging and your first session are free. Subscribe when
+            you&apos;re ready.
           </p>
         </div>
       </div>

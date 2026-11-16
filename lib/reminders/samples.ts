@@ -13,6 +13,7 @@ export function sampleContext(key: ReminderKey): ReminderContext {
     firstName: 'Alex',
     mentorFirstName: 'Jordan',
     mentorSchool: 'Georgetown University',
+    firstSessionFree: true,
   }
 }
 

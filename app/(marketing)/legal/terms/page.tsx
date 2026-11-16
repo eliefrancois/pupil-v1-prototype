@@ -60,11 +60,11 @@ export default function TermsOfServicePage() {
             Subscription &amp; Payment
           </h2>
           <p className="mt-4">
-            Access to Pupil&rsquo;s mentoring services requires a paid
-            subscription of <strong>$900 per year</strong>. Payment is collected
-            at the time of enrollment and covers a full year of access, including
-            mentor matching, scheduled sessions, messaging, and all platform
-            features.
+            Ongoing mentoring sessions on Pupil require a paid subscription of{' '}
+            <strong>$99 per month</strong>, billed monthly until you cancel. The
+            subscription includes up to 24 sessions per year, messaging, and all
+            platform features. Each matched student&rsquo;s first session and
+            messaging with their mentor are free, with no payment required.
           </p>
           <p className="mt-3">
             We offer a <strong>90-day refund guarantee</strong>. If you are not

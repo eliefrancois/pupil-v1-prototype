@@ -17,6 +17,7 @@ interface UserRow {
   onboarding_complete: boolean | null
   created_at: string
   moderation_status: string | null
+  subscription_status: string | null
 }
 
 interface MentorProfileRow {
@@ -54,6 +55,7 @@ export interface ReminderContext {
   mentorSchool?: string
   studentFirstNames?: string[]
   ccParent?: boolean
+  firstSessionFree?: boolean
 }
 
 export type Evaluation =
@@ -131,7 +133,8 @@ export async function loadReminderFacts(
     )
   }
 
-  const userCols = 'id, email, full_name, role, onboarding_complete, created_at, moderation_status'
+  const userCols =
+    'id, email, full_name, role, onboarding_complete, created_at, moderation_status, subscription_status'
   const mentorCols =
     'user_id, status, claim_status, availability_slots, max_mentees, submitted_at, reviewed_at, created_at, university, timezone'
 
@@ -357,6 +360,7 @@ export function evaluateReminder(
       const mentorUser = facts.users.get(mentorId)
       ctx.mentorFirstName = firstName(mentorUser?.full_name) || 'your mentor'
       ctx.mentorSchool = facts.mentors.get(mentorId)?.university || undefined
+      ctx.firstSessionFree = user.subscription_status === 'inactive'
       const messagedAt = facts.firstMessageAt.get(userId)
 
       if (key === 'student_say_hi') {

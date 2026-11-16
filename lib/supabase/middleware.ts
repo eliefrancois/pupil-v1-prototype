@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { safeNextPath } from '@/lib/auth/safe-next'
+
 const PROTECTED_ROUTES = [
   '/dashboard',
   '/mentor',
@@ -55,9 +57,8 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isAuthPage && user) {
-    const dashUrl = request.nextUrl.clone()
-    dashUrl.pathname = '/dashboard'
-    return NextResponse.redirect(dashUrl)
+    const next = safeNextPath(request.nextUrl.searchParams.get('next'))
+    return NextResponse.redirect(new URL(next ?? '/dashboard', request.url))
   }
 
   return supabaseResponse

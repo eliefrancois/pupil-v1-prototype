@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Mail, Lock, Loader as Loader2 } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
+import { safeNextPath } from '@/lib/auth/safe-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,8 +16,8 @@ import BrandMark from '@/components/brand-mark'
 export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = searchParams.get('next')
-  const [email, setEmail] = useState('')
+  const next = safeNextPath(searchParams.get('next'))
+  const [email, setEmail] = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -148,7 +149,10 @@ export default function LoginForm() {
 
           <p className="mt-6 text-center text-[13px] text-text-2">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-primary hover:underline">
+            <Link
+              href={next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'}
+              className="text-primary hover:underline"
+            >
               Sign up
             </Link>
           </p>

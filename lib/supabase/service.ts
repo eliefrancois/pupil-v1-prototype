@@ -14,5 +14,8 @@ export function createServiceClient() {
   }
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // Next's Data Cache otherwise keeps GET results for a year, even on
+    // force-dynamic routes, so crons and admin pages would read stale rows.
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }) },
   })
 }

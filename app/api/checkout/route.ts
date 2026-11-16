@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { captureServerEvent } from '@/lib/analytics/server'
 import { safeNextPath } from '@/lib/auth/safe-next'
 import { getPriceId, getStripe } from '@/lib/billing/stripe'
+import { BILLING_COLUMNS, planFromBilling, type BillingRow } from '@/lib/billing/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,15 +31,11 @@ export async function POST(request: NextRequest) {
 
   const { data: row } = await supabase
     .from('users')
-    .select('email, subscription_status, stripe_customer_id')
+    .select(`email, stripe_customer_id, ${BILLING_COLUMNS}`)
     .eq('id', user.id)
-    .maybeSingle<{
-      email: string
-      subscription_status: string
-      stripe_customer_id: string | null
-    }>()
+    .maybeSingle<BillingRow & { email: string; stripe_customer_id: string | null }>()
 
-  if (row?.subscription_status === 'active' || row?.subscription_status === 'free') {
+  if (row && planFromBilling(row) !== 'none') {
     return NextResponse.json(
       { error: 'You already have access.', code: 'already_subscribed' },
       { status: 409 }
@@ -65,10 +62,15 @@ export async function POST(request: NextRequest) {
       metadata: { user_id: user.id },
       subscription_data: { metadata: { user_id: user.id } },
       ...(row?.stripe_customer_id
-        ? { customer: row.stripe_customer_id }
+        ? {
+            customer: row.stripe_customer_id,
+            customer_update: { address: 'auto' as const, name: 'auto' as const },
+          }
         : customerEmail
           ? { customer_email: customerEmail }
           : {}),
+      billing_address_collection: 'required',
+      automatic_tax: { enabled: true },
       allow_promotion_codes: true,
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}${returnPath}`,

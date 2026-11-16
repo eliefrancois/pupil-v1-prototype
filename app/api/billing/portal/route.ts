@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 import { createClient } from '@/lib/supabase/server'
 import { captureServerEvent } from '@/lib/analytics/server'
@@ -6,7 +6,7 @@ import { getStripe } from '@/lib/billing/stripe'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   const stripe = getStripe()
   if (!stripe) {
     return NextResponse.json(
@@ -36,13 +36,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const origin =
-    request.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-
+  // No configuration or return_url: the account's default portal
+  // configuration (set up in Stripe, returns to /dashboard) applies.
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: row.stripe_customer_id,
-      return_url: `${origin}/dashboard/settings`,
     })
     await captureServerEvent(user.id, 'billing_portal_opened')
     return NextResponse.json({ url: session.url })

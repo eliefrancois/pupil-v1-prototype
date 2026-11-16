@@ -7,6 +7,7 @@ import {
   notifyMentorAssigned,
   notifyStudentMatched,
 } from '@/lib/email/notifications'
+import { captureServerEvent } from '@/lib/analytics/server'
 import { isMentorAssignableForMatch } from '@/lib/matching/mentor-eligibility'
 import { normalizeOptIns } from '@/lib/scheduling/slots'
 
@@ -122,6 +123,11 @@ export async function assignStudentMentor({
       .in('status', ['pending', 'forwarded'])
 
     await sendMatchNotifications(supabase, studentId, mentorId)
+    await captureServerEvent(studentId, 'mentor_assigned', {
+      mentor_id: mentorId,
+      assigned_by: adminId,
+      reassigned: previousMentorId !== null,
+    })
   }
 
   revalidatePath('/admin/matching')

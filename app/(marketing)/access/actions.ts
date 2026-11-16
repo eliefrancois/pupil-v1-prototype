@@ -1,5 +1,6 @@
 'use server'
 
+import { captureServerEvent } from '@/lib/analytics/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { notifyCounselorOfEligibilityApplication } from '@/lib/email/notifications'
 import { normalizeEmail, validateEmail } from '@/lib/validation/email'
@@ -143,6 +144,12 @@ export async function submitEligibilityApplication(
       .update({ counselor_emailed_at: new Date().toISOString() })
       .eq('id', application.id)
   }
+
+  await captureServerEvent(`eligibility_application:${application.id}`, 'eligibility_application_submitted', {
+    eligibility_type: input.eligibilityType,
+    counselor_emailed: emailSent,
+    $process_person_profile: false,
+  })
 
   return { ok: true, emailSent }
 }

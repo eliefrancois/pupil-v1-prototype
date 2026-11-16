@@ -1,5 +1,21 @@
+const posthogHost = (
+  process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'
+).replace(/\/$/, '')
+const posthogAssetsHost = posthogHost.replace(
+  /^https:\/\/(us|eu)\.i\.posthog\.com$/,
+  'https://$1-assets.i.posthog.com'
+)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // PostHog's ingestion endpoints use trailing slashes (/e/, /decide/).
+  skipTrailingSlashRedirect: true,
+  async rewrites() {
+    return [
+      { source: '/ingest/static/:path*', destination: `${posthogAssetsHost}/static/:path*` },
+      { source: '/ingest/:path*', destination: `${posthogHost}/:path*` },
+    ]
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },

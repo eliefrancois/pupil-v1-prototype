@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { notifyMentorOfFirstMessage } from '@/lib/email/notifications'
+import { captureServerEvent } from '@/lib/analytics/server'
 
 export type SendMessageResult =
   | { ok: true; messageId: string }
@@ -376,11 +377,17 @@ async function notifyMentorIfFirstMessage(
     const mentor = people?.find((p) => p.id === recipientId)
     if (sender?.role !== 'student' || mentor?.role !== 'mentor') return
 
-    await notifyMentorOfFirstMessage({
-      mentorEmail: mentor.email,
-      mentorName: mentor.full_name,
-      studentName: sender.full_name,
-    })
+    await Promise.all([
+      notifyMentorOfFirstMessage({
+        mentorEmail: mentor.email,
+        mentorName: mentor.full_name,
+        studentName: sender.full_name,
+      }),
+      captureServerEvent(senderId, 'first_message_sent', {
+        conversation_id: conversationId,
+        mentor_id: recipientId,
+      }),
+    ])
   } catch (err) {
     console.error('[messaging] first-message notification failed:', err)
   }

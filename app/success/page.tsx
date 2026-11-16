@@ -1,130 +1,99 @@
-'use client'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { CircleCheck, Clock } from 'lucide-react'
 
-import { Suspense, useCallback, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { createClient } from '@/lib/supabase/client'
-import { CircleCheck as CheckCircle, CircleAlert as AlertCircle, Loader as Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { getCurrentUser } from '@/lib/supabase/get-user'
+import { createServiceClient } from '@/lib/supabase/service'
+import { BILLING_CONTACT_EMAIL, getStripe } from '@/lib/billing/stripe'
+import { applyCheckoutSession } from '@/lib/billing/webhook'
 
-type Status = 'loading' | 'success' | 'error'
+import AutoRedirect from './auto-redirect'
 
-function SuccessContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [status, setStatus] = useState<Status>('loading')
+export const dynamic = 'force-dynamic'
 
-  const verifyPayment = useCallback(async () => {
-    const sessionId = searchParams.get('session_id')
-    if (!sessionId) {
-      setStatus('error')
-      return
-    }
+type CheckoutState = 'confirmed' | 'pending'
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setStatus('error')
-      return
-    }
+async function verifyCheckout(sessionId: string | undefined, userId: string): Promise<CheckoutState> {
+  const stripe = getStripe()
+  if (!stripe || !sessionId || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return 'pending'
 
-    // Poll for subscription_status to be updated by webhook
-    let attempts = 0
-    const maxAttempts = 10
-
-    const poll = async (): Promise<boolean> => {
-      const { data } = await supabase
-        .from('users')
-        .select('subscription_status')
-        .eq('id', user.id)
-        .single()
-
-      return data?.subscription_status === 'active'
-    }
-
-    while (attempts < maxAttempts) {
-      const active = await poll()
-      if (active) {
-        setStatus('success')
-        return
-      }
-      attempts++
-      await new Promise(r => setTimeout(r, 2000))
-    }
-
-    // Webhook may be slow; still redirect to onboarding since checkout completed
-    setStatus('success')
-  }, [searchParams])
-
-  useEffect(() => {
-    verifyPayment()
-  }, [verifyPayment])
-
-  useEffect(() => {
-    if (status === 'success') {
-      const timer = setTimeout(() => router.push('/onboarding'), 2000)
-      return () => clearTimeout(timer)
-    }
-  }, [status, router])
-
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center py-12">
-        {status === 'loading' && (
-          <>
-            <Loader2 className="mb-4 h-12 w-12 animate-spin text-[#7A60E4]" />
-            <h2 className="text-xl font-semibold text-gray-900">Verifying your payment...</h2>
-            <p className="mt-2 text-sm text-gray-500">This will only take a moment.</p>
-          </>
-        )}
-
-        {status === 'success' && (
-          <>
-            <CheckCircle className="mb-4 h-12 w-12 text-green-500" />
-            <h2 className="text-xl font-semibold text-gray-900">Payment confirmed!</h2>
-            <p className="mt-2 text-sm text-gray-500">Redirecting to onboarding...</p>
-          </>
-        )}
-
-        {status === 'error' && (
-          <>
-            <AlertCircle className="mb-4 h-12 w-12 text-red-500" />
-            <h2 className="text-xl font-semibold text-gray-900">We couldn&apos;t confirm payment yet</h2>
-            <p className="mt-2 text-center text-sm text-gray-500">
-              If you completed checkout, your payment may still be processing. Check your email or contact{' '}
-              <a href="mailto:dario@getpupil.com" className="text-[#7A60E4] hover:underline">
-                dario@getpupil.com
-              </a>
-            </p>
-            <button
-              onClick={() => router.push('/onboarding')}
-              className="mt-6 rounded-md bg-[#7A60E4] px-6 py-2 text-sm font-medium text-white hover:bg-[#6950d0]"
-            >
-              Continue to onboarding
-            </button>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  )
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+    const owner = session.client_reference_id ?? session.metadata?.user_id
+    if (owner !== userId) return 'pending'
+    const paid =
+      session.payment_status === 'paid' || session.payment_status === 'no_payment_required'
+    if (session.status !== 'complete' || !paid) return 'pending'
+    await applyCheckoutSession(createServiceClient(), session)
+    return 'confirmed'
+  } catch (err) {
+    console.error('[success] checkout verification failed:', err)
+    return 'pending'
+  }
 }
 
-export default function PaymentSuccessPage() {
+export default async function PaymentSuccessPage({
+  searchParams,
+}: {
+  searchParams: { session_id?: string }
+}) {
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?next=/success')
+
+  const verified = await verifyCheckout(searchParams.session_id, user.id)
+  const state: CheckoutState =
+    verified === 'confirmed' || user.subscription_status === 'active' ? 'confirmed' : 'pending'
+
+  const nextPath =
+    user.role === 'student' && !user.onboarding_complete ? '/onboarding' : '/dashboard'
+  const nextLabel = nextPath === '/onboarding' ? 'Finish signing up' : 'Go to your dashboard'
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md px-4">
-        <Suspense
-          fallback={
-            <Card>
-              <CardContent className="flex flex-col items-center py-12">
-                <Loader2 className="mb-4 h-12 w-12 animate-spin text-[#7A60E4]" />
-                <h2 className="text-xl font-semibold text-gray-900">Loading...</h2>
-              </CardContent>
-            </Card>
-          }
-        >
-          <SuccessContent />
-        </Suspense>
-      </div>
+    <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+      <Card className="w-full max-w-md">
+        <CardContent className="flex flex-col items-center px-8 py-12 text-center">
+          {state === 'confirmed' ? (
+            <>
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary-light text-primary">
+                <CircleCheck className="h-7 w-7" />
+              </div>
+              <h1 className="display text-[28px] leading-tight">You&apos;re subscribed</h1>
+              <p className="mt-2 text-[14px] text-text-2">
+                Thanks for joining Pupil. You can book up to 24 sessions a year and
+                message your mentor anytime. A receipt is on its way to your email.
+              </p>
+              <Button className="mt-8" asChild>
+                <Link href={nextPath}>{nextLabel}</Link>
+              </Button>
+              <AutoRedirect to={nextPath} delayMs={5000} />
+            </>
+          ) : (
+            <>
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-surface-2 text-text-2">
+                <Clock className="h-7 w-7" />
+              </div>
+              <h1 className="display text-[28px] leading-tight">Almost there</h1>
+              <p className="mt-2 text-[14px] text-text-2">
+                We haven&apos;t confirmed your payment yet. This usually takes a few
+                seconds. If you finished checkout, refresh this page in a minute. Still
+                stuck? Email{' '}
+                <a
+                  href={`mailto:${BILLING_CONTACT_EMAIL}`}
+                  className="text-primary hover:underline"
+                >
+                  {BILLING_CONTACT_EMAIL}
+                </a>
+                .
+              </p>
+              <Button variant="outline" className="mt-8" asChild>
+                <Link href={nextPath}>{nextLabel}</Link>
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

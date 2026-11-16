@@ -9,6 +9,14 @@ export type AnalyticsEvent =
   | 'checkout_started'
   | 'mentor_profile_claimed'
   | 'eligibility_application_submitted'
+  | 'free_session_modal_shown'
+  | 'free_session_booked'
+  | 'upgrade_modal_shown'
+  | 'upgrade_clicked'
+  | 'subscription_activated'
+  | 'subscription_canceled'
+  | 'payment_failed'
+  | 'billing_portal_opened'
 
 export const POSTHOG_HOST =
   process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'

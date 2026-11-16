@@ -75,6 +75,7 @@ interface MatchRowProps {
     colleges: string[]
     careers: string[]
     created_at: string
+    needs_rematch_at: string | null
     pending_requests: StudentPendingRequest[]
     match: MatchMentee
   }
@@ -208,6 +209,7 @@ export default function MatchRow({ student, mentorOptions }: MatchRowProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {student.needs_rematch_at && <Badge variant="danger">Needs new mentor</Badge>}
             {isMatched ? (
               <Badge variant="success">
                 Matched: {student.matched_mentor_name}

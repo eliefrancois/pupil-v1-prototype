@@ -20,6 +20,7 @@ import {
   CircleCheck as CheckCircle,
   Image as ImageIcon,
   ChartColumn as BarChart,
+  Mail,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
@@ -47,6 +48,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   CheckCircle,
   Image: ImageIcon,
   BarChart,
+  Mail,
 }
 
 const navByRole: Record<string, NavItem[]> = {

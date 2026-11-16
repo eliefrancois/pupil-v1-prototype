@@ -36,6 +36,7 @@ type StudentRow = {
   colleges: string[]
   careers: string[]
   created_at: string
+  needs_rematch_at: string | null
   pending_requests: StudentPendingRequest[]
   /** Canonical-taxonomy data the match-strength scorer consumes. */
   match: MatchMentee
@@ -48,7 +49,10 @@ export default async function AdminMatchingPage({
 }: {
   searchParams: { show?: string }
 }) {
-  const tab = searchParams?.show === 'matched' ? 'matched' : 'queue'
+  const tab =
+    searchParams?.show === 'matched' || searchParams?.show === 'rematch'
+      ? searchParams.show
+      : 'queue'
   const user = await getCurrentUser()
   if (!user) redirect('/login?next=/admin/matching')
   if (user.role !== 'admin') {
@@ -75,7 +79,7 @@ export default async function AdminMatchingPage({
       supabase
         .from('student_profiles')
         .select(
-          'user_id, grade, city, state, interests, colleges, careers, matched_mentor_id, created_at, academic_identity, first_gen, race_ethnicity, fit_preferences'
+          'user_id, grade, city, state, interests, colleges, careers, matched_mentor_id, created_at, needs_rematch_at, academic_identity, first_gen, race_ethnicity, fit_preferences'
         )
         .order('created_at', { ascending: false }),
       supabase
@@ -193,6 +197,7 @@ export default async function AdminMatchingPage({
         colleges: row.colleges ?? [],
         careers: row.careers ?? [],
         created_at: row.created_at,
+        needs_rematch_at: row.needs_rematch_at,
         pending_requests: pendingByStudent.get(row.user_id) ?? [],
         match: {
           academic_identity: asStrArray(row.academic_identity),
@@ -238,7 +243,9 @@ export default async function AdminMatchingPage({
 
   const matchedStudents = students.filter((s) => s.matched_mentor_id)
   const queueStudents = students.filter((s) => !s.matched_mentor_id)
-  const visibleStudents = tab === 'matched' ? matchedStudents : queueStudents
+  const rematchStudents = matchedStudents.filter((s) => s.needs_rematch_at)
+  const visibleStudents =
+    tab === 'matched' ? matchedStudents : tab === 'rematch' ? rematchStudents : queueStudents
   const assignableMentorCount = mentorOptions.filter((m) => m.assignable).length
 
   return (
@@ -277,6 +284,18 @@ export default async function AdminMatchingPage({
                 Matched ({matchedStudents.length})
               </Link>
             </Button>
+            {rematchStudents.length > 0 && (
+              <Button
+                variant={tab === 'rematch' ? 'default' : 'ghost'}
+                size="sm"
+                asChild
+                className="flex-1"
+              >
+                <Link href="/admin/matching?show=rematch">
+                  Needs new mentor ({rematchStudents.length})
+                </Link>
+              </Button>
+            )}
           </div>
         )}
 
@@ -284,14 +303,18 @@ export default async function AdminMatchingPage({
           <Card className="p-12 text-center">
             <CardContent className="p-0">
               <p className="text-[15px] font-semibold text-text">
-                {tab === 'matched'
+                {tab === 'rematch'
+                  ? 'No students need a new mentor'
+                  : tab === 'matched'
                   ? 'No matched students yet'
                   : students.length === 0
                     ? 'No students yet'
                     : 'No students need a match right now'}
               </p>
               <p className="mt-1 text-[13px] text-text-2">
-                {tab === 'matched'
+                {tab === 'rematch'
+                  ? 'Students show up here when their mentor goes a full reminder round without adding availability.'
+                  : tab === 'matched'
                   ? 'Assign mentors from the Needs match tab. Matched pairs show up here.'
                   : students.length === 0
                     ? "Once students complete onboarding, they'll show up here ready to be matched."
@@ -338,6 +361,10 @@ export default async function AdminMatchingPage({
                 <span className="flex items-center gap-1.5">
                   <Badge variant="warning">Unmatched</Badge>
                   Awaiting assignment
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Badge variant="danger">Needs new mentor</Badge>
+                  Mentor never added availability
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Badge variant="secondary">Ghost</Badge>

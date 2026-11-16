@@ -12,6 +12,8 @@ import {
 
 import StatCard from '@/components/stat-card'
 import { Card, CardContent } from '@/components/ui/card'
+import { REMINDERS, REMINDER_KEYS } from '@/lib/reminders/definitions'
+import { loadReminderStats } from '@/lib/reminders/stats'
 import { getCurrentUser } from '@/lib/supabase/get-user'
 import { createServiceClient } from '@/lib/supabase/service'
 import { cn } from '@/lib/utils'
@@ -129,9 +131,10 @@ export default async function UsagePage({
   const bucket: Bucket = searchParams.interval === 'month' ? 'month' : 'week'
 
   const service = createServiceClient()
-  const { data, error } = await service.rpc('admin_usage_metrics', {
-    p_bucket: bucket,
-  })
+  const [{ data, error }, reminderStats] = await Promise.all([
+    service.rpc('admin_usage_metrics', { p_bucket: bucket }),
+    loadReminderStats(service).catch(() => null),
+  ])
 
   if (error || !data) {
     return (
@@ -355,6 +358,49 @@ export default async function UsagePage({
           </CardContent>
         </Card>
       </section>
+
+      {reminderStats && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-baseline justify-between gap-4">
+              <h2 className="text-[15px] font-semibold text-text">
+                Reminder emails, last 30 days
+              </h2>
+              <Link href="/admin/reminders" className="text-[13px] text-primary hover:underline">
+                Manage
+              </Link>
+            </div>
+            <p className="mt-1 text-[13px] text-text-2">
+              Converted means the person did the thing within 3 days of an email.
+            </p>
+            <table className="mt-4 w-full text-[13px]">
+              <thead>
+                <tr className="text-left text-text-3">
+                  <th className="py-2 font-medium">Reminder</th>
+                  <th className="py-2 text-right font-medium">Sent</th>
+                  <th className="py-2 text-right font-medium">Converted</th>
+                  <th className="py-2 text-right font-medium">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {REMINDER_KEYS.map((key) => {
+                  const s = reminderStats.byReminder[key]
+                  return (
+                    <tr key={key} className="border-t border-border">
+                      <td className="py-2 text-text">{REMINDERS[key].label}</td>
+                      <td className="py-2 text-right tabular-nums">{s.sent}</td>
+                      <td className="py-2 text-right tabular-nums">{s.converted}</td>
+                      <td className="py-2 text-right tabular-nums">
+                        {pct(s.converted, s.sent)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-6">

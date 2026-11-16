@@ -47,7 +47,7 @@ export default function UpgradeBanner({ variant = 'full' }: UpgradeBannerProps) 
         </div>
         <div className="flex items-center gap-2 sm:shrink-0">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/access">Free or pilot access</Link>
+            <Link href="/access">Apply for free access</Link>
           </Button>
           <Button size="sm" asChild>
             <Link href="/pricing">

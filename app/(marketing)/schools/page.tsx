@@ -326,7 +326,7 @@ function ClosingCTASection() {
               </Link>
             </Button>
             <Button size="lg" variant="secondary" asChild>
-              <Link href="/access">Have an access code?</Link>
+              <Link href="/access">Families: apply for free access</Link>
             </Button>
           </div>
         </div>

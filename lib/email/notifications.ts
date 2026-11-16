@@ -20,6 +20,7 @@ import MatchRequestDeclinedEmail from '@/emails/match-request-declined'
 import MatchRequestAdminEmail from '@/emails/match-request-admin'
 import StudentMatchedEmail from '@/emails/student-matched'
 import MenteeFirstMessageEmail from '@/emails/mentee-first-message'
+import EligibilityCounselorEmail from '@/emails/eligibility-counselor'
 import MentorAssignedEmail from '@/emails/mentor-assigned'
 import MentorApprovedEmail from '@/emails/mentor-approved'
 
@@ -282,11 +283,48 @@ export async function notifyStudentOfDecline(
 }
 
 // ---------------------------------------------------------------------------
+// Free access (eligibility) emails
+// ---------------------------------------------------------------------------
+
+/**
+ * Sent to the counselor a family listed on /access, CCing the family and
+ * admin, asking them to reply to confirm eligibility. Returns whether
+ * Resend accepted it.
+ */
+export async function notifyCounselorOfEligibilityApplication(payload: {
+  counselorEmail: string
+  familyEmails: string[]
+  parentName: string
+  studentName: string
+  grade: number
+  school: string
+}): Promise<boolean> {
+  const node = EligibilityCounselorEmail({
+    parentName: payload.parentName,
+    studentName: payload.studentName,
+    grade: payload.grade,
+    school: payload.school,
+  })
+
+  return deliver({
+    to: payload.counselorEmail,
+    cc: Array.from(new Set([...payload.familyEmails, ADMIN_EMAIL])),
+    subject: `Can you confirm free Pupil access for ${payload.studentName}?`,
+    html: await render(node),
+    text: await render(node, { plainText: true }),
+    tag: 'eligibility_counselor',
+    from: `Dario at Pupil <${ADMIN_EMAIL}>`,
+    replyTo: ADMIN_EMAIL,
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Delivery shim
 // ---------------------------------------------------------------------------
 
 interface DeliverArgs {
   to: string
+  cc?: string[]
   subject: string
   html: string
   text: string
@@ -298,6 +336,7 @@ interface DeliverArgs {
 
 async function deliver({
   to,
+  cc,
   subject,
   html,
   text,
@@ -311,7 +350,9 @@ async function deliver({
     // would have been sent during local testing. The full HTML is preview-
     // able via `npx react-email dev`.
     console.log(
-      `\n[email:${tag}] would send to ${to}\n  subject: ${subject}\n  body:\n${text
+      `\n[email:${tag}] would send to ${to}${
+        cc?.length ? `\n  cc: ${cc.join(', ')}` : ''
+      }\n  subject: ${subject}\n  body:\n${text
         .split('\n')
         .map((l) => `    ${l}`)
         .join('\n')}\n`
@@ -329,6 +370,7 @@ async function deliver({
       body: JSON.stringify({
         from,
         to,
+        ...(cc?.length ? { cc } : {}),
         subject,
         html,
         text,

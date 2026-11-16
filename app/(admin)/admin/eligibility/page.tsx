@@ -1,34 +1,46 @@
-"use client"
+import { redirect } from 'next/navigation'
 
-import { useState } from "react"
-import { CircleCheck as CheckCircle, Circle as XCircle, Mail } from "lucide-react"
-import { ELIGIBILITY } from "@/lib/mock-data"
-import type { EligibilityApplication } from "@/lib/mock-data"
-import AdminDevNotice from "@/components/admin-dev-notice"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent } from '@/components/ui/card'
+import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/supabase/get-user'
 
-export default function EligibilityPage() {
-  const [applications, setApplications] = useState<EligibilityApplication[]>([
-    ...ELIGIBILITY,
-  ])
-  const [toast, setToast] = useState<string | null>(null)
+import ApplicationRow, { type EligibilityApplicationItem } from './application-row'
 
-  const showToast = (message: string) => {
-    setToast(message)
-    setTimeout(() => setToast(null), 3000)
+export const dynamic = 'force-dynamic'
+
+export default async function EligibilityPage() {
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?next=/admin/eligibility')
+  if (user.role !== 'admin') {
+    return (
+      <div className="p-8">
+        <Card className="p-12 text-center">
+          <CardContent className="p-0">
+            <p className="text-[15px] font-semibold text-text">Admins only</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  const handleApprove = (id: string, name: string) => {
-    setApplications((prev) => prev.filter((a) => a.id !== id))
-    showToast(`${name} approved`)
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('eligibility_applications')
+    .select(
+      'id, student_name, parent_name, email, student_email, grade, school, eligibility_type, counselor_email, counselor_status, counselor_emailed_at, status, granted_user_id, created_at, reviewed_at'
+    )
+    .order('created_at', { ascending: false })
+    .limit(200)
+    .returns<EligibilityApplicationItem[]>()
+
+  if (error) {
+    console.error('[admin/eligibility] failed to load applications', error)
   }
 
-  const handleDeny = (id: string, name: string) => {
-    setApplications((prev) => prev.filter((a) => a.id !== id))
-    showToast(`${name} denied`)
-  }
+  const applications = data ?? []
+  const pendingCount = applications.filter(
+    (a) => (a.status ?? 'pending') === 'pending'
+  ).length
 
   return (
     <div className="h-full overflow-y-auto">
@@ -36,76 +48,23 @@ export default function EligibilityPage() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Eligibility review</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {applications.length} application{applications.length !== 1 ? "s" : ""} pending review
+            {pendingCount} pending · {applications.length} total. Approve once
+            the counselor confirms by replying to the email.
           </p>
         </div>
 
-        <AdminDevNotice feature="Eligibility review" />
-
-        {/* Toast */}
-        {toast && (
-          <div className="fixed bottom-6 right-6 z-50 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-900 shadow-lg">
-            {toast}
+        {error ? (
+          <div className="py-16 text-center text-sm text-red-600">
+            Couldn&apos;t load applications. Check the server logs.
           </div>
-        )}
-
-        {applications.length === 0 ? (
+        ) : applications.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
-            No pending applications.
+            No applications yet.
           </div>
         ) : (
           <div className="space-y-4">
             {applications.map((app) => (
-              <Card key={app.id}>
-                <CardContent className="flex items-start gap-4 p-5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-semibold text-gray-900">{app.name}</h3>
-                      <span className="text-xs text-gray-500">Grade {app.grade}</span>
-                      <span className="text-xs text-gray-400">{app.school}</span>
-                    </div>
-
-                    <div className="mt-1.5 flex items-center gap-2 text-xs text-gray-500">
-                      <Mail className="h-3.5 w-3.5" />
-                      {app.email}
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Badge variant="default">{app.type}</Badge>
-                      <Badge
-                        variant={
-                          app.counselorStatus === "confirmed" ? "success" : "warning"
-                        }
-                      >
-                        Counselor {app.counselorStatus}
-                      </Badge>
-                      <span className="text-xs text-gray-400">{app.counselor}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 flex-col gap-2">
-                    <Button
-                      size="sm"
-                      variant="success"
-                      className="gap-1.5"
-                      disabled={app.counselorStatus !== "confirmed"}
-                      onClick={() => handleApprove(app.id, app.name)}
-                    >
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="gap-1.5"
-                      onClick={() => handleDeny(app.id, app.name)}
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      Deny
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <ApplicationRow key={app.id} app={app} />
             ))}
           </div>
         )}

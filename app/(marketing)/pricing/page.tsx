@@ -129,13 +129,13 @@ export default function PricingPage() {
               Need free access?
             </h3>
             <p className="mt-2 text-[13px] text-text-2">
-              We offer free access for families who qualify. Check your
-              eligibility or enter a pilot code.
+              We offer free access for families who qualify. Applying takes a
+              couple of minutes.
             </p>
           </Card>
         </Link>
 
-        <Link href="/access" className="group">
+        <Link href="/schools" className="group">
           <Card hover className="h-full p-6">
             <h3 className="text-[15px] font-semibold text-text transition-colors group-hover:text-primary">
               School or organization?
